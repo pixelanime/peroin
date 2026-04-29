@@ -955,23 +955,11 @@
 
   </div>
 </main>
+<<script>
+// ============ KONFIGURASI UTAMA ============
+const API_BASE = 'https://peroin-production.up.railway.app'; // Pastikan URL ini benar sesuai dashboard Railway Anda
 
-<script>
-// ============ KONFIGURASI KONEKSI ============
-// 1. Railway (Backend Utama)
-const API_BASE = 'https://peroin-production.up.railway.app';
-
-// 2. Supabase (Client Side Direct)
-let supabase = null;
-const USE_SUPABASE = false; // Default false (pakai Railway). Bisa diubah manual atau via fungsi testConnection()
-
-// 3. Fonnte / WA Config
-let WA_CONFIG = {
-  provider: 'railway', // 'railway' atau 'fonnte'
-  token: localStorage.getItem('waFonnteToken') || '',
-  sender: '628xxxxxxxxxx'
-};
-
+// State Global
 let orders = [];
 let notifications = [
   { id: 1, type: 'order', title: 'Pesanan Baru dari Shopee', desc: 'Rina Susanti memesan Kaos Polos Premium Cotton 30s', time: Date.now() - 300000, read: false },
@@ -985,6 +973,7 @@ let currentPesananPage = 1;
 const PESANAN_PER_PAGE = 10;
 let startTime = Date.now();
 
+// Data Dummy (Jika API Gagal/Error)
 const MARKETPLACES = ['Shopee', 'Tokopedia', 'Lazada', 'TikTok Shop', 'WhatsApp'];
 const MP_CLASSES = { Shopee: 'mp-shopee', Tokopedia: 'mp-tokopedia', Lazada: 'mp-lazada', 'TikTok Shop': 'mp-tiktok', WhatsApp: 'mp-wa' };
 const MP_ICONS = { Shopee: 'fas fa-shopping-bag', Tokopedia: 'fas fa-store', Lazada: 'fas fa-star', 'TikTok Shop': 'fab fa-tiktok', WhatsApp: 'fab fa-whatsapp' };
@@ -1003,119 +992,7 @@ function timeAgo(dateString) {
   return Math.floor(minutes/1440) + ' hari lalu';
 }
 
-// ============ FUNGSI SUPABASE ============
-async function initSupabase() {
-  const url = document.getElementById('supabaseUrl')?.value;
-  const key = document.getElementById('supabaseKey')?.value;
-  
-  if (url && key && url.startsWith('http')) {
-    try {
-      supabase = supabase.createClient(url, key);
-      console.log('Supabase Initialized');
-      showToast('Klien Supabase siap!', 'success');
-    } catch (e) {
-      console.error(e);
-      showToast('Gagal inisialisasi Supabase', 'error');
-    }
-  }
-}
-
-async function fetchOrdersSupabase() {
-  if (!supabase) return null;
-  try {
-    const { data, error } = await supabase
-      .from('orders')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .range((currentPesananPage-1)*PESANAN_PER_PAGE, currentPesananPage*PESANAN_PER_PAGE - 1);
-    
-    if (error) throw error;
-    // Hitung total (simple estimate for this demo)
-    const { count } = await supabase.from('orders').select('*', { count: 'exact', head: true });
-    return { data, total: count || 0 };
-  } catch (err) {
-    console.error('Supabase Fetch Error:', err);
-    return null;
-  }
-}
-
-function testSupabaseConnection() {
-  const url = document.getElementById('supabaseUrl')?.value;
-  const key = document.getElementById('supabaseKey')?.value;
-  if(!url || !key) { showToast('URL dan Key Supabase wajib diisi', 'warning'); return; }
-  
-  initSupabase().then(() => {
-    fetchOrdersSupabase().then(res => {
-      if(res && res.data) {
-        showToast(`Terhubung ke Supabase! Ditemukan ${res.data.length} order.`, 'success');
-        // Render jika sukses
-        renderPesananTableSupabase(res.data, res.total);
-      } else {
-        showToast('Terhubung tapi tidak ada data order (cek tabel nama).', 'warning');
-      }
-    });
-  });
-}
-
-function renderPesananTableSupabase(data, total) {
-    const pageData = data;
-    const totalPages = Math.max(1, Math.ceil(total / PESANAN_PER_PAGE));
-    document.getElementById('pesananBody').innerHTML = pageData.map(o => `
-      <tr>
-        <td><input type="checkbox"></td>
-        <td class="font-mono" style="font-size:12px;color:var(--accent);cursor:pointer;" onclick="openDetail('${o.id}')">${o.id}</td>
-        <td><div style="font-weight:600;">${o.pembeli || 'Unknown'}</div><div style="font-size:11px;color:var(--text-muted);" class="font-mono">${o.phone || '-'}</div></td>
-        <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;">${o.produk || 'Item'} x${o.qty}</td>
-        <td><span class="mp-badge ${MP_CLASSES[o.marketplace]}"><i class="${MP_ICONS[o.marketplace]}"></i> ${o.marketplace}</span></td>
-        <td class="font-mono" style="font-weight:600;">${formatRp(o.total)}</td>
-        <td style="font-size:12px;color:var(--text-muted);">${timeAgo(o.created_at)}</td>
-        <td><span class="status ${STATUS_CLASSES[o.status]}"><span class="status-dot"></span>${STATUS_LABELS[o.status]}</span></td>
-        <td>
-          <div style="display:flex;gap:4px;">
-            <button class="btn btn-ghost btn-sm" onclick="openDetail('${o.id}')"><i class="fas fa-eye"></i></button>
-          </div>
-        </td>
-      </tr>
-    `).join('');
-    // Update pagination logic would go here similar to renderPesanan
-}
-
-// ============ FUNGSI FONNTE (DIRECT) ============
-async function sendFonnteDirect(target, message) {
-  if (!WA_CONFIG.token) {
-    showToast('Token Fonnte belum disetting', 'error');
-    return;
-  }
-
-  const formData = new FormData();
-  formData.append('target', target);
-  formData.append('message', message);
-  // Jika ingin delay, tambahkan: formData.append('delay', '10');
-
-  try {
-    const response = await fetch('https://api.fonnte.com/send', {
-      method: 'POST',
-      headers: {
-        'Authorization': WA_CONFIG.token
-      },
-      body: formData
-    });
-    
-    const result = await response.json();
-    console.log('Fonnte Direct Result:', result);
-    
-    if (result.status) {
-      return { success: true };
-    } else {
-      return { success: false, error: result.message || 'Gagal kirim WA' };
-    }
-  } catch (err) {
-    console.error(err);
-    return { success: false, error: 'Koneksi ke Fonnte gagal' };
-  }
-}
-
-// ============ UI HELPERS ============
+// ============ FUNGSI TOAST & ANIMATION ============
 function showToast(msg, type = 'info') {
   const container = document.getElementById('toastContainer');
   const icons = { success: 'fa-check-circle', warning: 'fa-exclamation-triangle', error: 'fa-times-circle', info: 'fa-info-circle' };
@@ -1140,16 +1017,22 @@ function animateNumber(el, target, prefix = '', suffix = '') {
   requestAnimationFrame(step);
 }
 
+// ============ NAVIGASI ============
 function switchPage(page, navEl) {
   currentPage = page;
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.getElementById('page-' + page).classList.add('active');
+  const targetPage = document.getElementById('page-' + page);
+  if(targetPage) targetPage.classList.add('active');
+  
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   if (navEl) navEl.classList.add('active');
+  
   const titles = { dashboard: ['Dashboard', 'Monitoring real-time pesanan & trafik'], pesanan: ['Pesanan Masuk', 'Kelola semua pesanan dari marketplace'], tracking: ['Tracking Pengiriman', 'Monitor status pengiriman pesanan'], 'notif-wa': ['Notifikasi WhatsApp', 'Log & konfigurasi bot WA'], trafik: ['Trafik Marketplace', 'Analisis kunjungan & konversi'], produk: ['Produk Terlaris', 'Performa produk di semua marketplace'], settings: ['Pengaturan', 'Konfigurasi integrasi & notifikasi'] };
   const t = titles[page] || ['', ''];
   document.getElementById('pageTitle').textContent = t[0];
   document.getElementById('pageSubtitle').textContent = t[1];
+  
+  // Render halaman
   if (page === 'dashboard') renderDashboard();
   if (page === 'pesanan') renderPesanan();
   if (page === 'tracking') renderTracking();
@@ -1157,16 +1040,27 @@ function switchPage(page, navEl) {
   if (page === 'trafik') renderTrafik();
   if (page === 'produk') renderProduk();
   if (page === 'settings') renderSettings();
-  if (window.innerWidth < 768) document.getElementById('sidebar').classList.remove('mobile-open');
+  
+  if (window.innerWidth < 768) {
+    const sb = document.getElementById('sidebar');
+    if(sb) sb.classList.remove('mobile-open');
+  }
 }
 
 function toggleSidebar() {
   const sb = document.getElementById('sidebar');
   const mc = document.getElementById('mainContent');
-  if (window.innerWidth < 768) sb.classList.toggle('mobile-open');
-  else { sb.classList.toggle('collapsed'); mc.classList.toggle('expanded'); }
+  if (!sb || !mc) return;
+  
+  if (window.innerWidth < 768) {
+    sb.classList.toggle('mobile-open');
+  } else {
+    sb.classList.toggle('collapsed');
+    mc.classList.toggle('expanded');
+  }
 }
 
+// ============ DASHBOARD ============
 const chartTooltipStyle = {
   backgroundColor: '#162019', borderColor: '#243d30', borderWidth: 1,
   titleColor: '#e8f5ee', bodyColor: '#8aaa97',
@@ -1180,43 +1074,55 @@ let chartPenjualan, chartMarketplace, chartTrafik, chartTrafikMP;
 
 async function renderDashboard() {
   try {
-    // Gunakan data Railway sebagai default
     const resStats = await fetch(`${API_BASE}/api/stats/dashboard`);
+    if (!resStats.ok) throw new Error('Stats fetch failed');
     const stats = await resStats.json();
-    animateNumber(document.getElementById('statHariIni'), stats.hariIni);
-    animateNumber(document.getElementById('statBelumProses'), stats.belumProses);
-    animateNumber(document.getElementById('statDikirim'), stats.dikirim);
-    document.getElementById('statPendapatan').textContent = formatRp(stats.pendapatan);
-    document.getElementById('badgePesanan').textContent = stats.belumProses;
     
-    // Fetch orders for table (Railway)
+    animateNumber(document.getElementById('statHariIni'), stats.hariIni || 0);
+    animateNumber(document.getElementById('statBelumProses'), stats.belumProses || 0);
+    animateNumber(document.getElementById('statDikirim'), stats.dikirim || 0);
+    document.getElementById('statPendapatan').textContent = formatRp(stats.pendapatan || 0);
+    document.getElementById('badgePesanan').textContent = stats.belumProses || 0;
+    
+    // Fetch orders for table
     const resOrders = await fetch(`${API_BASE}/api/orders?limit=6`);
     const jsonOrders = await resOrders.json();
-    orders = jsonOrders.data;
-    document.getElementById('recentOrdersBody').innerHTML = orders.map(o => `
-      <tr>
-        <td class="font-mono" style="font-size:12px;color:var(--accent);">${o.id}</td>
-        <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;">${o.produk}</td>
-        <td><span class="mp-badge ${MP_CLASSES[o.marketplace]}"><i class="${MP_ICONS[o.marketplace]}"></i> ${o.marketplace}</span></td>
-        <td class="font-mono" style="font-weight:600;">${formatRp(o.total)}</td>
-        <td><span class="status ${STATUS_CLASSES[o.status]}"><span class="status-dot"></span>${STATUS_LABELS[o.status]}</span></td>
-        <td><button class="btn btn-ghost btn-sm" onclick="openDetail('${o.id}')"><i class="fas fa-eye"></i></button></td>
-      </tr>
-    `).join('');
+    orders = jsonOrders.data || [];
+    
+    const tbody = document.getElementById('recentOrdersBody');
+    if(tbody) {
+        tbody.innerHTML = orders.map(o => `
+        <tr>
+            <td class="font-mono" style="font-size:12px;color:var(--accent);">${o.id}</td>
+            <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;">${o.produk}</td>
+            <td><span class="mp-badge ${MP_CLASSES[o.marketplace]}"><i class="${MP_ICONS[o.marketplace]}"></i> ${o.marketplace}</span></td>
+            <td class="font-mono" style="font-weight:600;">${formatRp(o.total)}</td>
+            <td><span class="status ${STATUS_CLASSES[o.status]}"><span class="status-dot"></span>${STATUS_LABELS[o.status]}</span></td>
+            <td><button class="btn btn-ghost btn-sm" onclick="openDetail('${o.id}')"><i class="fas fa-eye"></i></button></td>
+        </tr>
+      `).join('');
+    }
+    
+    renderChartPenjualan();
+    renderChartMarketplace();
+    renderChartTrafikDashboard();
+    
   } catch (err) {
     console.error('Gagal memuat Dashboard:', err);
-    showToast('Gagal terhubung ke Backend!', 'error');
+    showToast('Gagal terhubung ke Backend! (Cek Console)', 'error');
+    // Fallback: Tetap render chart dummy agar UI tidak kosong
+    renderChartTrafikDashboard(); 
   }
-  renderChartPenjualan();
-  renderChartMarketplace();
-  renderChartTrafikDashboard();
 }
 
 function renderChartMarketplace() {
-  const ctx = document.getElementById('chartMarketplace').getContext('2d');
+  const ctx = document.getElementById('chartMarketplace')?.getContext('2d');
+  if (!ctx) return;
   if (chartMarketplace) chartMarketplace.destroy();
+  
   const mpData = MARKETPLACES.map(mp => orders.filter(o => o.marketplace === mp).length);
   const colors = ['rgba(238,77,45,0.25)', 'rgba(66,165,71,0.25)', 'rgba(0,105,210,0.25)', 'rgba(255,0,80,0.25)', 'rgba(37,211,102,0.25)'];
+  
   chartMarketplace = new Chart(ctx, {
     type: 'doughnut',
     data: { labels: MARKETPLACES, datasets: [{ data: mpData, backgroundColor: colors, borderWidth: 0, hoverOffset: 2 }] },
@@ -1225,19 +1131,26 @@ function renderChartMarketplace() {
       plugins: { legend: { display: false }, tooltip: { backgroundColor: '#111a16', borderColor: '#1c2b23', borderWidth: 1, titleColor: '#8aaa97', bodyColor: '#8aaa97', titleFont: { family: 'Space Grotesk', size: 11 }, padding: 8, cornerRadius: 6, displayColors: false } }
     }
   });
-  document.getElementById('marketplaceLegend').innerHTML = MARKETPLACES.map((mp, i) => `
-    <div style="display:flex;align-items:center;justify-content:space-between;">
-      <div style="display:flex;align-items:center;gap:8px;"><div style="width:6px;height:6px;border-radius:2px;background:${colors[i]};"></div><span style="font-size:12px;color:var(--text-secondary);">${mp}</span></div>
-      <span style="font-size:12px;font-weight:600;color:var(--text-secondary);" class="font-mono">${mpData[i]}</span>
-    </div>
-  `).join('');
+  
+  const legendEl = document.getElementById('marketplaceLegend');
+  if(legendEl) {
+    legendEl.innerHTML = MARKETPLACES.map((mp, i) => `
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <div style="display:flex;align-items:center;gap:8px;"><div style="width:6px;height:6px;border-radius:2px;background:${colors[i]};"></div><span style="font-size:12px;color:var(--text-secondary);">${mp}</span></div>
+        <span style="font-size:12px;font-weight:600;color:var(--text-secondary);" class="font-mono">${mpData[i]}</span>
+      </div>
+    `).join('');
+  }
 }
 
 function renderChartTrafikDashboard() {
-  const ctx = document.getElementById('chartTrafik').getContext('2d');
+  const ctx = document.getElementById('chartTrafik')?.getContext('2d');
+  if (!ctx) return;
   if (chartTrafik) chartTrafik.destroy();
+  
   const labels = []; const data = [];
   for (let i = 29; i >= 0; i--) { labels.push(i % 5 === 0 ? i + 'm' : ''); data.push(randInt(10, 120)); }
+  
   chartTrafik = new Chart(ctx, {
     type: 'line',
     data: {
@@ -1264,16 +1177,18 @@ function renderChartTrafikDashboard() {
   animateNumber(document.getElementById('liveViews'), randInt(400, 1800));
 }
 
-
 function renderChartPenjualan() {
-  const ctx = document.getElementById('chartPenjualan').getContext('2d');
+  const ctx = document.getElementById('chartPenjualan')?.getContext('2d');
+  if (!ctx) return;
   if (chartPenjualan) chartPenjualan.destroy();
+  
   const labels = []; const dataOrders = []; const dataRevenue = [];
   for (let i = 6; i >= 0; i--) {
     const d = new Date(Date.now() - i * 86400000);
     labels.push(d.toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric' }));
     dataOrders.push(randInt(15, 65)); dataRevenue.push(randInt(500000, 5000000));
   }
+  
   chartPenjualan = new Chart(ctx, {
     type: 'bar',
     data: {
@@ -1313,9 +1228,7 @@ function switchChartPeriod(btn, period) {
   renderChartPenjualan();
 }
 
-// ============================================================
-// PESANAN
-// ============================================================
+// ============ PESANAN (LOGIKA PERBAIKAN) ============
 function filterPesanan(btn, filter) {
   currentFilter = filter; currentPesananPage = 1;
   btn.parentElement.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -1325,142 +1238,170 @@ function filterPesanan(btn, filter) {
 
 async function renderPesanan() {
   try {
-    // Cek apakah menggunakan Supabase langsung atau Railway API
-    if (USE_SUPABASE && supabase) {
-      const supaData = await fetchOrdersSupabase();
-      if (supaData) {
-        // Gunakan data Supabase
-        // (Logic renderPagination disederhanakan untuk demo ini)
-        renderPesananTableSupabase(supaData.data, supaData.total);
-        return;
-      }
-    }
-
-    // Default: Gunakan Railway API
     let url = `${API_BASE}/api/orders?page=${currentPesananPage}&limit=${PESANAN_PER_PAGE}`;
     if (currentFilter !== 'semua') url += `&status=${currentFilter}`;
     const mpFilter = document.getElementById('filterMP')?.value;
     if (mpFilter && mpFilter !== 'semua') url += `&marketplace=${mpFilter}`;
     const searchVal = document.getElementById('globalSearch')?.value?.toLowerCase();
     if (searchVal) url += `&search=${searchVal}`;
+    
     const res = await fetch(url);
     const json = await res.json();
-    const pageData = json.data; const total = json.total;
+    
+    const pageData = json.data || [];
+    const total = json.total || 0;
     const totalPages = Math.max(1, Math.ceil(total / PESANAN_PER_PAGE));
-    document.getElementById('pesananBody').innerHTML = pageData.map(o => `
-      <tr>
-        <td><input type="checkbox"></td>
-        <td class="font-mono" style="font-size:12px;color:var(--accent);cursor:pointer;" onclick="openDetail('${o.id}')">${o.id}</td>
-        <td><div style="font-weight:600;">${o.pembeli}</div><div style="font-size:11px;color:var(--text-muted);" class="font-mono">${o.phone}</div></td>
-        <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;">${o.produk} x${o.qty}</td>
-        <td><span class="mp-badge ${MP_CLASSES[o.marketplace]}"><i class="${MP_ICONS[o.marketplace]}"></i> ${o.marketplace}</span></td>
-        <td class="font-mono" style="font-weight:600;">${formatRp(o.total)}</td>
-        <td style="font-size:12px;color:var(--text-muted);">${timeAgo(o.created_at)}</td>
-        <td><span class="status ${STATUS_CLASSES[o.status]}"><span class="status-dot"></span>${STATUS_LABELS[o.status]}</span></td>
-        <td>
-          <div style="display:flex;gap:4px;">
-            ${o.status === 'baru' ? `<button class="btn btn-primary btn-sm" onclick="prosesPesanan('${o.id}')"><i class="fas fa-play"></i></button>` : ''}
-            ${o.status === 'proses' ? `<button class="btn btn-sm" style="background:var(--info-dim);color:var(--info);" onclick="kirimPesanan('${o.id}')"><i class="fas fa-truck"></i></button>` : ''}
-            ${o.status === 'kirim' ? `<button class="btn btn-sm" style="background:rgba(105,240,174,0.1);color:var(--success);" onclick="selesaiPesanan('${o.id}')"><i class="fas fa-check"></i></button>` : ''}
-            ${o.status !== 'batal' && o.status !== 'selesai' ? `<button class="btn btn-danger btn-sm" onclick="batalPesanan('${o.id}')"><i class="fas fa-xmark"></i></button>` : ''}
-            <button class="btn btn-ghost btn-sm" onclick="openDetail('${o.id}')"><i class="fas fa-eye"></i></button>
-          </div>
-        </td>
-      </tr>
-    `).join('');
-    const start = (currentPesananPage - 1) * PESANAN_PER_PAGE;
-    document.getElementById('pesananInfo').textContent = `Menampilkan ${start+1}-${Math.min(start+PESANAN_PER_PAGE, total)} dari ${total} pesanan`;
-    const pag = document.getElementById('pesananPagination');
-    let pagHtml = `<button class="btn btn-ghost btn-sm" ${currentPesananPage <= 1 ? 'disabled style="opacity:0.4"' : ''} onclick="currentPesananPage--;renderPesanan()"><i class="fas fa-chevron-left"></i></button>`;
-    for (let i = 1; i <= totalPages; i++) {
-      if (totalPages > 7 && i > 3 && i < totalPages - 1 && Math.abs(i - currentPesananPage) > 1) { if (i === 4 || i === totalPages - 2) pagHtml += `<span style="color:var(--text-muted);padding:0 4px;">...</span>`; continue; }
-      pagHtml += `<button class="btn ${i === currentPesananPage ? 'btn-primary' : 'btn-ghost'} btn-sm" onclick="currentPesananPage=${i};renderPesanan()">${i}</button>`;
+    
+    const tbody = document.getElementById('pesananBody');
+    if(tbody) {
+        tbody.innerHTML = pageData.map(o => `
+          <tr>
+            <td><input type="checkbox"></td>
+            <td class="font-mono" style="font-size:12px;color:var(--accent);cursor:pointer;" onclick="openDetail('${o.id}')">${o.id}</td>
+            <td><div style="font-weight:600;">${o.pembeli}</div><div style="font-size:11px;color:var(--text-muted);" class="font-mono">${o.phone}</div></td>
+            <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;">${o.produk} x${o.qty}</td>
+            <td><span class="mp-badge ${MP_CLASSES[o.marketplace]}"><i class="${MP_ICONS[o.marketplace]}"></i> ${o.marketplace}</span></td>
+            <td class="font-mono" style="font-weight:600;">${formatRp(o.total)}</td>
+            <td style="font-size:12px;color:var(--text-muted);">${timeAgo(o.created_at)}</td>
+            <td><span class="status ${STATUS_CLASSES[o.status]}"><span class="status-dot"></span>${STATUS_LABELS[o.status]}</span></td>
+            <td>
+              <div style="display:flex;gap:4px;">
+                ${o.status === 'baru' ? `<button class="btn btn-primary btn-sm" onclick="prosesPesanan('${o.id}')"><i class="fas fa-play"></i></button>` : ''}
+                ${o.status === 'proses' ? `<button class="btn btn-sm" style="background:var(--info-dim);color:var(--info);" onclick="kirimPesanan('${o.id}')"><i class="fas fa-truck"></i></button>` : ''}
+                ${o.status === 'kirim' ? `<button class="btn btn-sm" style="background:rgba(105,240,174,0.1);color:var(--success);" onclick="selesaiPesanan('${o.id}')"><i class="fas fa-check"></i></button>` : ''}
+                ${o.status !== 'batal' && o.status !== 'selesai' ? `<button class="btn btn-danger btn-sm" onclick="batalPesanan('${o.id}')"><i class="fas fa-xmark"></i></button>` : ''}
+                <button class="btn btn-ghost btn-sm" onclick="openDetail('${o.id}')"><i class="fas fa-eye"></i></button>
+              </div>
+            </td>
+          </tr>
+        `).join('');
     }
-    pagHtml += `<button class="btn btn-ghost btn-sm" ${currentPesananPage >= totalPages ? 'disabled style="opacity:0.4"' : ''} onclick="currentPesananPage++;renderPesanan()"><i class="fas fa-chevron-right"></i></button>`;
-    pag.innerHTML = pagHtml;
-  } catch(err) { showToast('Gagal memuat pesanan', 'error'); }
+
+    // Update Info & Pagination
+    const start = (currentPesananPage - 1) * PESANAN_PER_PAGE;
+    const infoEl = document.getElementById('pesananInfo');
+    if(infoEl) infoEl.textContent = `Menampilkan ${start+1}-${Math.min(start+PESANAN_PER_PAGE, total)} dari ${total} pesanan`;
+    
+    const pag = document.getElementById('pesananPagination');
+    if(pag) {
+        let pagHtml = `<button class="btn btn-ghost btn-sm" ${currentPesananPage <= 1 ? 'disabled style="opacity:0.4"' : ''} onclick="currentPesananPage--;renderPesanan()"><i class="fas fa-chevron-left"></i></button>`;
+        for (let i = 1; i <= totalPages; i++) {
+          if (totalPages > 7 && i > 3 && i < totalPages - 1 && Math.abs(i - currentPesananPage) > 1) { 
+            if (i === 4 || i === totalPages - 2) pagHtml += `<span style="color:var(--text-muted);padding:0 4px;">...</span>`; 
+            continue; 
+          }
+          pagHtml += `<button class="btn ${i === currentPesananPage ? 'btn-primary' : 'btn-ghost'} btn-sm" onclick="currentPesananPage=${i};renderPesanan()">${i}</button>`;
+        }
+        pagHtml += `<button class="btn btn-ghost btn-sm" ${currentPesananPage >= totalPages ? 'disabled style="opacity:0.4"' : ''} onclick="currentPesananPage++;renderPesanan()"><i class="fas fa-chevron-right"></i></button>`;
+        pag.innerHTML = pagHtml;
+    }
+  } catch(err) {
+    console.error(err);
+    showToast('Gagal memuat pesanan', 'error');
+  }
 }
 
 async function prosesPesanan(id) {
-  await fetch(`${API_BASE}/api/orders/${id}/status`, { method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ status: 'proses' }) });
-  if(currentPage==='pesanan') renderPesanan(); else renderDashboard();
-  showToast(`Pesanan ${id} diproses`, 'success');
+  try {
+    await fetch(`${API_BASE}/api/orders/${id}/status`, { method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ status: 'proses' }) });
+    if(currentPage==='pesanan') await renderPesanan(); else await renderDashboard();
+    showToast(`Pesanan ${id} diproses`, 'success');
+  } catch(e) { showToast('Gagal memproses pesanan', 'error'); }
 }
+
 async function kirimPesanan(id) {
   const kurir = ['JNE','J&T Express','SiCepat','AnterAja'][Math.floor(Math.random()*4)];
   const resi = kurir.substring(0,2).toUpperCase() + Math.floor(Math.random()*9000000000+1000000000);
-  await fetch(`${API_BASE}/api/orders/${id}/status`, { method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ status: 'kirim', kurir, resi }) });
-  if(currentPage==='pesanan') renderPesanan(); else renderDashboard();
-  showToast(`Pesanan ${id} dikirim via ${kurir}`, 'success');
+  try {
+    await fetch(`${API_BASE}/api/orders/${id}/status`, { method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ status: 'kirim', kurir, resi }) });
+    if(currentPage==='pesanan') await renderPesanan(); else await renderDashboard();
+    showToast(`Pesanan ${id} dikirim via ${kurir}`, 'success');
+  } catch(e) { showToast('Gagal mengirim pesanan', 'error'); }
 }
+
 async function selesaiPesanan(id) {
-  await fetch(`${API_BASE}/api/orders/${id}/status`, { method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ status: 'selesai' }) });
-  if(currentPage==='pesanan') renderPesanan(); else renderDashboard();
-  showToast(`Pesanan ${id} selesai`, 'success');
+  try {
+    await fetch(`${API_BASE}/api/orders/${id}/status`, { method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ status: 'selesai' }) });
+    if(currentPage==='pesanan') await renderPesanan(); else await renderDashboard();
+    showToast(`Pesanan ${id} selesai`, 'success');
+  } catch(e) { showToast('Gagal menyelesaikan pesanan', 'error'); }
 }
+
 async function batalPesanan(id) {
   showConfirm('Batalkan Pesanan?', `Yakin ingin membatalkan pesanan <strong>${id}</strong>?`, async () => {
-    await fetch(`${API_BASE}/api/orders/${id}/status`, { method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ status: 'batal' }) });
-    if(currentPage==='pesanan') renderPesanan(); else renderDashboard();
-    showToast(`Pesanan ${id} dibatalkan`, 'warning');
+    try {
+      await fetch(`${API_BASE}/api/orders/${id}/status`, { method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ status: 'batal' }) });
+      if(currentPage==='pesanan') await renderPesanan(); else await renderDashboard();
+      showToast(`Pesanan ${id} dibatalkan`, 'warning');
+    } catch(e) { showToast('Gagal membatalkan pesanan', 'error'); }
   });
 }
+
 async function simulasiPesananBaru() {
   const mp = MARKETPLACES[Math.floor(Math.random()*5)];
   const qty = Math.floor(Math.random()*3)+1;
   const price = Math.floor(Math.random()*250000)+35000;
   const newOrder = { id: 'SIM' + Math.floor(Math.random()*900000+100000), pembeli: 'Customer Simulasi', phone: '6281234567890', produk: NAMA_PRODUK[Math.floor(Math.random()*NAMA_PRODUK.length)], marketplace: mp, qty, price, total: price*qty, status: 'baru' };
-  await fetch(`${API_BASE}/api/orders`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(newOrder) });
-  if(currentPage==='pesanan') renderPesanan(); else renderDashboard();
-  showToast(`Pesanan baru dari ${mp} masuk!`, 'success');
+  try {
+    await fetch(`${API_BASE}/api/orders`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(newOrder) });
+    if(currentPage==='pesanan') await renderPesanan(); else await renderDashboard();
+    showToast(`Pesanan baru dari ${mp} masuk!`, 'success');
+  } catch(e) { showToast('Gagal simulasi pesanan', 'error'); }
 }
-function handleGlobalSearch(val) { if (currentPage === 'pesanan') { currentPesananPage = 1; renderPesanan(); } }
 
-// ============================================================
-// DETAIL, MODAL, NOTIFIKASI
-// ============================================================
+// ============ DETAIL & MODAL ============
 async function openDetail(id) {
-  const res = await fetch(`${API_BASE}/api/orders/${id}`);
-  const o = await res.json();
-  const modal = document.getElementById('modalDetail');
-  const content = document.getElementById('modalDetailContent');
-  const timelineSteps = [
-    { label: 'Pesanan Dibuat', desc: timeAgo(o.created_at), done: true },
-    { label: 'Pembayaran Dikonfirmasi', desc: o.status !== 'baru' ? 'Sudah dibayar' : 'Menunggu pembayaran', done: ['proses','kirim','selesai'].includes(o.status), current: o.status === 'baru' },
-    { label: 'Sedang Diproses', desc: 'Barang sedang disiapkan', done: ['kirim','selesai'].includes(o.status), current: o.status === 'proses' },
-    { label: 'Dikirim', desc: o.resi ? `via ${o.kurir} — ${o.resi}` : '-', done: o.status === 'selesai', current: o.status === 'kirim' },
-    { label: 'Selesai', desc: 'Barang diterima pembeli', done: o.status === 'selesai', current: false },
-  ];
-  content.innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:20px;">
-      <div><div style="font-size:18px;font-weight:700;" class="font-mono">${o.id}</div><span class="mp-badge ${MP_CLASSES[o.marketplace]}" style="margin-top:6px;"><i class="${MP_ICONS[o.marketplace]}"></i> ${o.marketplace}</span></div>
-      <button onclick="document.getElementById('modalDetail').classList.remove('open')" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:20px;"><i class="fas fa-xmark"></i></button>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
-      <div style="padding:14px;background:var(--bg-primary);border-radius:10px;"><div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">Pembeli</div><div style="font-size:14px;font-weight:600;">${o.pembeli}</div><div style="font-size:12px;color:var(--text-muted);" class="font-mono">${o.phone}</div></div>
-      <div style="padding:14px;background:var(--bg-primary);border-radius:10px;"><div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">Status</div><span class="status ${STATUS_CLASSES[o.status]}"><span class="status-dot"></span>${STATUS_LABELS[o.status]}</span></div>
-    </div>
-    <div style="padding:16px;background:var(--bg-primary);border-radius:12px;margin-bottom:20px;">
-      <div style="font-size:13px;font-weight:700;margin-bottom:10px;">Detail Produk</div>
-      <div style="display:flex;justify-content:space-between;align-items:center;"><div><div style="font-size:14px;font-weight:600;">${o.produk}</div><div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Qty: ${o.qty} × ${formatRp(o.price)}</div></div><div style="font-size:16px;font-weight:700;color:var(--accent);" class="font-mono">${formatRp(o.total)}</div></div>
-    </div>
-    ${o.resi ? `<div style="padding:16px;background:var(--bg-primary);border-radius:12px;margin-bottom:20px;"><div style="font-size:13px;font-weight:700;margin-bottom:10px;">Info Pengiriman</div><div style="display:flex;justify-content:space-between;"><div><span style="font-size:12px;color:var(--text-muted);">Kurir</span><div style="font-size:14px;font-weight:600;">${o.kurir}</div></div><div><span style="font-size:12px;color:var(--text-muted);">No. Resi</span><div style="font-size:14px;font-weight:600;" class="font-mono">${o.resi}</div></div><button class="btn btn-ghost btn-sm" onclick="navigator.clipboard.writeText('${o.resi}');showToast('Resi disalin','info')"><i class="fas fa-copy"></i> Salin</button></div></div>` : ''}
-    <div style="padding:16px;background:var(--bg-primary);border-radius:12px;margin-bottom:20px;">
-      <div style="font-size:13px;font-weight:700;margin-bottom:14px;">Tracking Timeline</div>
-      ${timelineSteps.map(s => `<div class="timeline-item ${s.done ? 'completed' : ''} ${s.current ? 'current' : ''}"><div class="timeline-dot"></div><div style="font-size:13px;font-weight:${s.done || s.current ? '600' : '400'};color:${s.done ? 'var(--text-primary)' : s.current ? 'var(--info)' : 'var(--text-muted)'}">${s.label}</div><div style="font-size:12px;color:var(--text-muted);margin-top:2px;">${s.desc}</div></div>`).join('')}
-    </div>
-    <div style="display:flex;gap:8px;justify-content:flex-end;">
-      <button class="btn btn-ghost" onclick="kirimWAManual('${o.id}')"><i class="fab fa-whatsapp"></i> Kirim WA</button>
-      ${o.status === 'baru' ? `<button class="btn btn-primary" onclick="prosesPesanan('${o.id}');document.getElementById('modalDetail').classList.remove('open');"><i class="fas fa-play"></i> Proses</button>` : ''}
-      ${o.status === 'proses' ? `<button class="btn btn-primary" onclick="kirimPesanan('${o.id}');document.getElementById('modalDetail').classList.remove('open');"><i class="fas fa-truck"></i> Kirim</button>` : ''}
-      ${o.status === 'kirim' ? `<button class="btn btn-primary" onclick="selesaiPesanan('${o.id}');document.getElementById('modalDetail').classList.remove('open');"><i class="fas fa-check"></i> Selesai</button>` : ''}
-    </div>`;
-  modal.classList.add('open');
+  try {
+    const res = await fetch(`${API_BASE}/api/orders/${id}`);
+    if (!res.ok) throw new Error('Order not found');
+    const o = await res.json();
+    
+    const modal = document.getElementById('modalDetail');
+    const content = document.getElementById('modalDetailContent');
+    
+    const timelineSteps = [
+      { label: 'Pesanan Dibuat', desc: timeAgo(o.created_at), done: true },
+      { label: 'Pembayaran Dikonfirmasi', desc: o.status !== 'baru' ? 'Sudah dibayar' : 'Menunggu pembayaran', done: ['proses','kirim','selesai'].includes(o.status), current: o.status === 'baru' },
+      { label: 'Sedang Diproses', desc: 'Barang sedang disiapkan', done: ['kirim','selesai'].includes(o.status), current: o.status === 'proses' },
+      { label: 'Dikirim', desc: o.resi ? `via ${o.kurir} — ${o.resi}` : '-', done: o.status === 'selesai', current: o.status === 'kirim' },
+      { label: 'Selesai', desc: 'Barang diterima pembeli', done: o.status === 'selesai', current: false },
+    ];
+    
+    content.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:20px;">
+        <div><div style="font-size:18px;font-weight:700;" class="font-mono">${o.id}</div><span class="mp-badge ${MP_CLASSES[o.marketplace]}" style="margin-top:6px;"><i class="${MP_ICONS[o.marketplace]}"></i> ${o.marketplace}</span></div>
+        <button onclick="document.getElementById('modalDetail').classList.remove('open')" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:20px;"><i class="fas fa-xmark"></i></button>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+        <div style="padding:14px;background:var(--bg-primary);border-radius:10px;"><div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">Pembeli</div><div style="font-size:14px;font-weight:600;">${o.pembeli}</div><div style="font-size:12px;color:var(--text-muted);" class="font-mono">${o.phone}</div></div>
+        <div style="padding:14px;background:var(--bg-primary);border-radius:10px;"><div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">Status</div><span class="status ${STATUS_CLASSES[o.status]}"><span class="status-dot"></span>${STATUS_LABELS[o.status]}</span></div>
+      </div>
+      <div style="padding:16px;background:var(--bg-primary);border-radius:12px;margin-bottom:20px;">
+        <div style="font-size:13px;font-weight:700;margin-bottom:10px;">Detail Produk</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;"><div><div style="font-size:14px;font-weight:600;">${o.produk}</div><div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Qty: ${o.qty} × ${formatRp(o.price)}</div></div><div style="font-size:16px;font-weight:700;color:var(--accent);" class="font-mono">${formatRp(o.total)}</div></div>
+      </div>
+      ${o.resi ? `<div style="padding:16px;background:var(--bg-primary);border-radius:12px;margin-bottom:20px;"><div style="font-size:13px;font-weight:700;margin-bottom:10px;">Info Pengiriman</div><div style="display:flex;justify-content:space-between;"><div><span style="font-size:12px;color:var(--text-muted);">Kurir</span><div style="font-size:14px;font-weight:600;">${o.kurir}</div></div><div><span style="font-size:12px;color:var(--text-muted);">No. Resi</span><div style="font-size:14px;font-weight:600;" class="font-mono">${o.resi}</div></div><button class="btn btn-ghost btn-sm" onclick="navigator.clipboard.writeText('${o.resi}');showToast('Resi disalin','info')"><i class="fas fa-copy"></i> Salin</button></div></div>` : ''}
+      <div style="padding:16px;background:var(--bg-primary);border-radius:12px;margin-bottom:20px;">
+        <div style="font-size:13px;font-weight:700;margin-bottom:14px;">Tracking Timeline</div>
+        ${timelineSteps.map(s => `<div class="timeline-item ${s.done ? 'completed' : ''} ${s.current ? 'current' : ''}"><div class="timeline-dot"></div><div style="font-size:13px;font-weight:${s.done || s.current ? '600' : '400'};color:${s.done ? 'var(--text-primary)' : s.current ? 'var(--info)' : 'var(--text-muted)'}">${s.label}</div><div style="font-size:12px;color:var(--text-muted);margin-top:2px;">${s.desc}</div></div>`).join('')}
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;">
+        <button class="btn btn-ghost" onclick="kirimWAManual('${o.id}')"><i class="fab fa-whatsapp"></i> Kirim WA</button>
+        ${o.status === 'baru' ? `<button class="btn btn-primary" onclick="prosesPesanan('${o.id}');document.getElementById('modalDetail').classList.remove('open');"><i class="fas fa-play"></i> Proses</button>` : ''}
+        ${o.status === 'proses' ? `<button class="btn btn-primary" onclick="kirimPesanan('${o.id}');document.getElementById('modalDetail').classList.remove('open');"><i class="fas fa-truck"></i> Kirim</button>` : ''}
+        ${o.status === 'kirim' ? `<button class="btn btn-primary" onclick="selesaiPesanan('${o.id}');document.getElementById('modalDetail').classList.remove('open');"><i class="fas fa-check"></i> Selesai</button>` : ''}
+      </div>`;
+    modal.classList.add('open');
+  } catch(e) {
+    console.error(e);
+    showToast('Gagal memuat detail pesanan', 'error');
+  }
 }
 
 function showConfirm(title, desc, onConfirm) {
   const modal = document.getElementById('modalConfirm');
-  document.getElementById('modalConfirmContent').innerHTML = `
+  const content = document.getElementById('modalConfirmContent');
+  content.innerHTML = `
     <div style="text-align:center;margin-bottom:20px;">
       <div style="width:56px;height:56px;border-radius:16px;background:var(--warning-dim);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;"><i class="fas fa-exclamation-triangle" style="font-size:24px;color:var(--warning);"></i></div>
       <div style="font-size:18px;font-weight:700;">${title}</div>
@@ -1471,45 +1412,58 @@ function showConfirm(title, desc, onConfirm) {
       <button class="btn btn-danger" style="flex:1;" id="confirmBtn">Ya, Lanjutkan</button>
     </div>`;
   modal.classList.add('open');
-  document.getElementById('confirmBtn').onclick = () => { modal.classList.remove('open'); onConfirm(); };
+  const btn = document.getElementById('confirmBtn');
+  if(btn) btn.onclick = () => { modal.classList.remove('open'); onConfirm(); };
 }
 
-function toggleNotifPanel() { 
-  document.getElementById('notifPanel').classList.toggle('open'); 
-  document.getElementById('notifOverlay').classList.toggle('open'); 
+function toggleNotifPanel() {
+  const panel = document.getElementById('notifPanel');
+  const overlay = document.getElementById('notifOverlay');
+  if(panel) panel.classList.toggle('open');
+  if(overlay) overlay.classList.toggle('open');
 }
-function markAllRead() { notifications.forEach(n => n.read = true); renderNotifPanel(); showToast('Semua notifikasi ditandai sudah dibaca', 'success'); }
+
+function markAllRead() {
+  notifications.forEach(n => n.read = true);
+  renderNotifPanel();
+  showToast('Semua notifikasi ditandai sudah dibaca', 'success');
+}
 
 function renderNotifPanel() {
   const unread = notifications.filter(n => !n.read).length;
-  document.getElementById('notifCount').textContent = unread + ' belum dibaca';
-  document.getElementById('bellBadge').textContent = unread;
-  document.getElementById('bellBadge').style.display = unread > 0 ? 'flex' : 'none';
-  const typeIcons = { order: 'fa-shopping-bag', payment: 'fa-credit-card', shipping: 'fa-truck', warning: 'fa-exclamation-triangle' };
-  const typeColors = { order: 'var(--accent)', payment: 'var(--info)', shipping: 'var(--purple)', warning: 'var(--warning)' };
-  document.getElementById('notifList').innerHTML = notifications.map(n => `
-    <div class="notif-item ${n.read ? '' : 'unread'}" onclick="notifications.find(x=>x.id===${n.id}).read=true;renderNotifPanel();">
-      <div style="display:flex;align-items:start;gap:12px;">
-        <div style="width:32px;height:32px;border-radius:8px;background:${n.read ? 'var(--bg-card)' : 'var(--accent-glow)'};display:flex;align-items:center;justify-content:center;flex-shrink:0;"><i class="fas ${typeIcons[n.type]||'fa-bell'}" style="font-size:13px;color:${typeColors[n.type]||'var(--text-muted)'}"></i></div>
-        <div style="flex:1;min-width:0;">
-          <div style="font-size:13px;font-weight:600;${n.read?'color:var(--text-secondary)':'color:var(--text-primary)'}">${n.title}</div>
-          <div style="font-size:12px;color:var(--text-muted);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${n.desc}</div>
-          <div style="font-size:11px;color:var(--text-muted);margin-top:4px;" class="font-mono">${timeAgo(Math.floor((Date.now()-n.time)/60000))}</div>
-        </div>
-      </div>
-    </div>`).join('');
+  const countEl = document.getElementById('notifCount');
+  const badgeEl = document.getElementById('bellBadge');
+  
+  if(countEl) countEl.textContent = unread + ' belum dibaca';
+  if(badgeEl) {
+      badgeEl.textContent = unread;
+      badgeEl.style.display = unread > 0 ? 'flex' : 'none';
+  }
+  
+  const listEl = document.getElementById('notifList');
+  if(listEl) {
+      const typeIcons = { order: 'fa-shopping-bag', payment: 'fa-credit-card', shipping: 'fa-truck', warning: 'fa-exclamation-triangle' };
+      const typeColors = { order: 'var(--accent)', payment: 'var(--info)', shipping: 'var(--purple)', warning: 'var(--warning)' };
+      listEl.innerHTML = notifications.map(n => `
+        <div class="notif-item ${n.read ? '' : 'unread'}" onclick="const notif = notifications.find(x=>x.id===${n.id}); if(notif) notif.read=true; renderNotifPanel();">
+          <div style="display:flex;align-items:start;gap:12px;">
+            <div style="width:32px;height:32px;border-radius:8px;background:${n.read ? 'var(--bg-card)' : 'var(--accent-glow)'};display:flex;align-items:center;justify-content:center;flex-shrink:0;"><i class="fas ${typeIcons[n.type]||'fa-bell'}" style="font-size:13px;color:${typeColors[n.type]||'var(--text-muted)'}"></i></div>
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:13px;font-weight:600;${n.read?'color:var(--text-secondary)':'color:var(--text-primary)'}">${n.title}</div>
+              <div style="font-size:12px;color:var(--text-muted);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${n.desc}</div>
+              <div style="font-size:11px;color:var(--text-muted);margin-top:4px;" class="font-mono">${timeAgo(Math.floor((Date.now()-n.time)/60000))}</div>
+            </div>
+          </div>
+        </div>`).join('');
+  }
 }
 
-// ============================================================
-// WA LOGS & KIRIM WA HYBRID
-// ============================================================
+// ============ WA LOGS & SEND WA ============
 async function renderWALog() {
   try {
-    // Coba ambil log dari Railway
     const res = await fetch(`${API_BASE}/api/wa-logs`);
     waLogs = await res.json();
     
-    // Render Stats
     document.getElementById('waSent').textContent = waLogs.filter(l => l.status === 'terkirim' || l.status === 'dibaca').length;
     document.getElementById('waFailed').textContent = waLogs.filter(l => l.status === 'gagal').length;
     document.getElementById('waRead').textContent = waLogs.filter(l => l.status === 'dibaca').length;
@@ -1530,44 +1484,25 @@ async function renderWALog() {
 
 async function kirimWAManual(id) {
   try {
-    // Fetch data order dulu (dari Railway/Supabase logic)
     const res = await fetch(`${API_BASE}/api/orders/${id}`);
     const o = await res.json();
     
     const message = `Halo ${o.pembeli}, pesanan Anda di Peroin:\n\n📦 ${o.produk} x${o.qty}\n💰 ${formatRp(o.total)}\n🆔 ${o.id}\n\nStatus: ${STATUS_LABELS[o.status]}${o.resi ? '\nKurir: ' + o.kurir + '\nResi: ' + o.resi : ''}\n\nTerima kasih!`;
     
-    // Cek Provider WA (Railway Proxy atau Fonnte Direct)
-    const provider = document.getElementById('waProvider')?.value || 'railway';
-    let waResult = { success: false, error: 'Unknown Provider' };
-
-    if (provider === 'fonnte') {
-      waResult = await sendFonnteDirect('0' + o.phone, message);
-    } else {
-      // Default ke Railway Proxy
-      try {
-        const waRes = await fetch(`${API_BASE}/api/send-wa`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phone: o.phone, message })
-        });
-        waResult = await waRes.json();
-      } catch (e) {
-        waResult = { success: false, error: 'Gagal konek ke Railway Proxy' };
-      }
-    }
-
-    if (waResult.success) { 
-      showToast(`WA berhasil dikirim ke ${o.phone}`, 'success'); 
-    } else { 
-      showToast(`Gagal kirim WA: ${waResult.error}`, 'error'); 
-    }
+    const waRes = await fetch(`${API_BASE}/api/send-wa`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone: o.phone, message })
+    });
+    const waResult = await waRes.json();
+    
+    if (waResult.success) { showToast(`WA berhasil dikirim ke ${o.phone}`, 'success'); }
+    else { showToast(`Gagal kirim WA: ${waResult.error}`, 'error'); }
     document.getElementById('modalDetail').classList.remove('open');
   } catch (err) { showToast('Gagal mengirim WhatsApp', 'error'); }
 }
 
-// ============================================================
-// TRACKING
-// ============================================================
+// ============ TRACKING ============
 async function renderTracking() {
   try {
     const search = document.getElementById('trackingSearch')?.value?.toLowerCase() || '';
@@ -1575,12 +1510,20 @@ async function renderTracking() {
     let url = `${API_BASE}/api/orders?limit=50`;
     if (filter !== 'semua') url += `&status=${filter}`;
     if (search) url += `&search=${search}`;
+    
     const res = await fetch(url);
     const json = await res.json();
-    const filtered = json.data.filter(o => o.resi);
-    const list = document.getElementById('trackingList');
-    if (filtered.length === 0) { list.innerHTML = `<div class="card" style="text-align:center;padding:60px;color:var(--text-muted);grid-column:1/-1;"><i class="fas fa-box-open" style="font-size:40px;margin-bottom:12px;display:block;"></i>Tidak ada pengiriman ditemukan</div>`; return; }
-    list.innerHTML = filtered.map(o => {
+    const filtered = (json.data || []).filter(o => o.resi);
+    
+    const listEl = document.getElementById('trackingList');
+    if(!listEl) return;
+    
+    if (filtered.length === 0) {
+      listEl.innerHTML = `<div class="card" style="text-align:center;padding:60px;color:var(--text-muted);grid-column:1/-1;"><i class="fas fa-box-open" style="font-size:40px;margin-bottom:12px;display:block;"></i>Tidak ada pengiriman ditemukan</div>`;
+      return;
+    }
+    
+    listEl.innerHTML = filtered.map(o => {
       const steps = [{ label: 'Dibuat', done: true }, { label: 'Diproses', done: true }, { label: 'Dikirim', done: o.status==='selesai'||o.status==='kirim', current: o.status==='kirim' }, { label: 'Diterima', done: o.status==='selesai' }];
       const progress = steps.filter(s => s.done).length / steps.length * 100;
       return `<div class="card fade-in" style="cursor:pointer;" onclick="openDetail('${o.id}')">
@@ -1599,15 +1542,16 @@ async function renderTracking() {
   } catch(e) { showToast('Gagal memuat tracking', 'error'); }
 }
 
-// ============================================================
-// TRAFIK
-// ============================================================
+// ============ TRAFIK & PRODUK ============
 function renderTrafik() {
-  const ctx = document.getElementById('chartTrafikMP').getContext('2d');
+  const ctx = document.getElementById('chartTrafikMP')?.getContext('2d');
+  if (!ctx) return;
   if (chartTrafikMP) chartTrafikMP.destroy();
+  
   const hours = [];
   for (let i = 23; i >= 0; i--) hours.push(i + ':00');
   const mpColors = ['rgba(238,77,45,0.35)', 'rgba(66,165,71,0.35)', 'rgba(0,105,210,0.35)', 'rgba(255,0,80,0.35)', 'rgba(37,211,102,0.35)'];
+  
   chartTrafikMP = new Chart(ctx, {
     type: 'line',
     data: {
@@ -1627,44 +1571,48 @@ function renderTrafik() {
       }
     }
   });
-  document.getElementById('trafikProdukBody').innerHTML = trafikProduk.map(p => `
-    <tr>
-      <td style="font-weight:600;max-width:200px;overflow:hidden;text-overflow:ellipsis;">${p.produk}</td>
-      <td><span class="mp-badge ${MP_CLASSES[p.marketplace]}"><i class="${MP_ICONS[p.marketplace]}"></i> ${p.marketplace}</span></td>
-      <td class="font-mono">${p.views.toLocaleString()}</td>
-      <td class="font-mono">${p.atc.toLocaleString()}</td>
-      <td class="font-mono" style="font-weight:600;color:${parseFloat(p.conv)>3?'var(--accent)':'var(--text-secondary)'};">${p.conv}%</td>
-      <td><i class="fas fa-arrow-${p.trend}" style="color:${p.trend==='up'?'var(--accent)':'var(--danger)'}"></i></td>
-    </tr>`).join('');
+  
+  const bodyEl = document.getElementById('trafikProdukBody');
+  if(bodyEl) {
+      bodyEl.innerHTML = trafikProduk.map(p => `
+        <tr>
+          <td style="font-weight:600;max-width:200px;overflow:hidden;text-overflow:ellipsis;">${p.produk}</td>
+          <td><span class="mp-badge ${MP_CLASSES[p.marketplace]}"><i class="${MP_ICONS[p.marketplace]}"></i> ${p.marketplace}</span></td>
+          <td class="font-mono">${p.views.toLocaleString()}</td>
+          <td class="font-mono">${p.atc.toLocaleString()}</td>
+          <td class="font-mono" style="font-weight:600;color:${parseFloat(p.conv)>3?'var(--accent)':'var(--text-secondary)'};">${p.conv}%</td>
+          <td><i class="fas fa-arrow-${p.trend}" style="color:${p.trend==='up'?'var(--accent)':'var(--danger)'}"></i></td>
+        </tr>`).join('');
+  }
 }
 
-// ============================================================
-// PRODUK
-// ============================================================
 function renderProduk() {
   produkTerlaris.sort((a, b) => b.terjual - a.terjual);
-  document.getElementById('produkBody').innerHTML = produkTerlaris.map((p, i) => {
-    const max = Math.max(...p.chart); const min = Math.min(...p.chart); const range = max-min||1;
-    const points = p.chart.map((v, idx) => `${idx*14},${30-((v-min)/range)*24}`).join(' ');
-    return `<tr>
-      <td style="font-weight:700;color:${i<3?'var(--accent)':'var(--text-muted)'};">#${i+1}</td>
-      <td style="font-weight:600;max-width:200px;overflow:hidden;text-overflow:ellipsis;">${p.produk}</td>
-      <td><span class="mp-badge ${MP_CLASSES[p.marketplace]}"><i class="${MP_ICONS[p.marketplace]}"></i> ${p.marketplace}</span></td>
-      <td class="font-mono" style="font-weight:700;">${p.terjual}</td>
-      <td class="font-mono" style="font-weight:600;">${formatRp(p.revenue)}</td>
-      <td><span style="font-weight:600;color:${p.stok<5?'var(--danger)':p.stok<20?'var(--warning)':'var(--text-primary)'};">${p.stok}</span>${p.stok<5?'<i class="fas fa-exclamation-circle" style="color:var(--danger);font-size:11px;margin-left:4px;"></i>':''}</td>
-      <td><svg width="84" height="32" style="overflow:visible;"><polyline points="${points}" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></td>
-    </tr>`;
-  }).join('');
+  const bodyEl = document.getElementById('produkBody');
+  if(bodyEl) {
+      bodyEl.innerHTML = produkTerlaris.map((p, i) => {
+        const max = Math.max(...p.chart); const min = Math.min(...p.chart); const range = max-min||1;
+        const points = p.chart.map((v, idx) => `${idx*14},${30-((v-min)/range)*24}`).join(' ');
+        return `<tr>
+          <td style="font-weight:700;color:${i<3?'var(--accent)':'var(--text-muted)'};">#${i+1}</td>
+          <td style="font-weight:600;max-width:200px;overflow:hidden;text-overflow:ellipsis;">${p.produk}</td>
+          <td><span class="mp-badge ${MP_CLASSES[p.marketplace]}"><i class="${MP_ICONS[p.marketplace]}"></i> ${p.marketplace}</span></td>
+          <td class="font-mono" style="font-weight:700;">${p.terjual}</td>
+          <td class="font-mono" style="font-weight:600;">${formatRp(p.revenue)}</td>
+          <td><span style="font-weight:600;color:${p.stok<5?'var(--danger)':p.stok<20?'var(--warning)':'var(--text-primary)'};">${p.stok}</span>${p.stok<5?'<i class="fas fa-exclamation-circle" style="color:var(--danger);font-size:11px;margin-left:4px;"></i>':''}</td>
+          <td><svg width="84" height="32" style="overflow:visible;"><polyline points="${points}" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></td>
+        </tr>`;
+      }).join('');
+  }
 }
 
-// ============================================================
-// SETTINGS
-// ============================================================
+// ============ SETTINGS ============
 function renderSettings() {
-  // Load saved values
-  if(localStorage.getItem('waFonnteToken')) {
-    document.getElementById('waFonnteToken').value = localStorage.getItem('waFonnteToken');
+  // Load WA Token
+  const savedToken = localStorage.getItem('waFonnteToken');
+  if(savedToken) {
+      const tokenInput = document.getElementById('waFonnteToken');
+      if(tokenInput) tokenInput.value = savedToken;
   }
 
   const mpConfigs = [
@@ -1673,41 +1621,45 @@ function renderSettings() {
     { name: 'Lazada', color: '#0069d2', icon: 'fas fa-star', fields: ['App Key', 'App Secret', 'Access Token'] },
     { name: 'TikTok Shop', color: '#ff0050', icon: 'fab fa-tiktok', fields: ['App Key', 'App Secret', 'Shop ID'] },
   ];
-  document.getElementById('marketplaceConfig').innerHTML = mpConfigs.map(mp => `
-    <div style="padding:16px;background:var(--bg-primary);border-radius:12px;border:1px solid var(--border);">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-        <div style="display:flex;align-items:center;gap:10px;"><div style="width:32px;height:32px;border-radius:8px;background:${mp.color}20;display:flex;align-items:center;justify-content:center;"><i class="${mp.icon}" style="color:${mp.color};font-size:14px;"></i></div><span style="font-size:14px;font-weight:700;">${mp.name}</span></div>
-        <span style="font-size:11px;padding:3px 10px;border-radius:6px;background:var(--warning-dim);color:var(--warning);font-weight:600;">Belum terhubung</span>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:8px;">${mp.fields.map(f => `<input type="password" class="input" placeholder="${f}..." style="font-size:12px;padding:8px 12px;">`).join('')}</div>
-      <button class="btn btn-ghost btn-sm" style="margin-top:10px;width:100%;justify-content:center;" onclick="showToast('Koneksi ${mp.name} disimpan','success')"><i class="fas fa-plug"></i> Hubungkan ${mp.name}</button>
-    </div>`).join('');
+  
+  const mpContainer = document.getElementById('marketplaceConfig');
+  if(mpContainer) {
+      mpContainer.innerHTML = mpConfigs.map(mp => `
+        <div style="padding:16px;background:var(--bg-primary);border-radius:12px;border:1px solid var(--border);">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+            <div style="display:flex;align-items:center;gap:10px;"><div style="width:32px;height:32px;border-radius:8px;background:${mp.color}20;display:flex;align-items:center;justify-content:center;"><i class="${mp.icon}" style="color:${mp.color};font-size:14px;"></i></div><span style="font-size:14px;font-weight:700;">${mp.name}</span></div>
+            <span style="font-size:11px;padding:3px 10px;border-radius:6px;background:var(--warning-dim);color:var(--warning);font-weight:600;">Belum terhubung</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px;">${mp.fields.map(f => `<input type="password" class="input" placeholder="${f}..." style="font-size:12px;padding:8px 12px;">`).join('')}</div>
+          <button class="btn btn-ghost btn-sm" style="margin-top:10px;width:100%;justify-content:center;" onclick="showToast('Koneksi ${mp.name} disimpan','success')"><i class="fas fa-plug"></i> Hubungkan ${mp.name}</button>
+        </div>`).join('');
+  }
+
   const connections = [
     { name: 'Railway Backend', icon: 'fas fa-server', status: 'aktif', color: 'var(--accent)' },
-    { name: 'Fonnte Direct', icon: 'fab fa-whatsapp', status: WA_CONFIG.token ? 'Ready' : 'No Token', color: WA_CONFIG.token ? 'var(--accent)' : 'var(--warning)' },
-    { name: 'Supabase Client', icon: 'fas fa-database', status: supabase ? 'Ready' : 'Idle', color: supabase ? 'var(--accent)' : 'var(--text-muted)' },
+    { name: 'Fonnte Direct', icon: 'fab fa-whatsapp', status: 'Ready', color: 'var(--accent)' },
+    { name: 'Supabase Client', icon: 'fas fa-database', status: 'Idle', color: 'var(--text-muted)' },
   ];
-  document.getElementById('connectionStatus').innerHTML = connections.map(c => `
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px;background:var(--bg-primary);border-radius:10px;">
-      <div style="display:flex;align-items:center;gap:10px;"><i class="${c.icon}" style="color:var(--text-muted);width:18px;text-align:center;"></i><span style="font-size:13px;font-weight:600;">${c.name}</span></div>
-      <div style="display:flex;align-items:center;gap:6px;"><div style="width:8px;height:8px;border-radius:50%;background:${c.color};"></div><span style="font-size:12px;color:${c.color};font-weight:600;">${c.status}</span></div>
-    </div>`).join('');
+  const connContainer = document.getElementById('connectionStatus');
+  if(connContainer) {
+      connContainer.innerHTML = connections.map(c => `
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:12px;background:var(--bg-primary);border-radius:10px;">
+          <div style="display:flex;align-items:center;gap:10px;"><i class="${c.icon}" style="color:var(--text-muted);width:18px;text-align:center;"></i><span style="font-size:13px;font-weight:600;">${c.name}</span></div>
+          <div style="display:flex;align-items:center;gap:6px;"><div style="width:8px;height:8px;border-radius:50%;background:${c.color};"></div><span style="font-size:12px;color:${c.color};font-weight:600;">${c.status}</span></div>
+        </div>`).join('');
+  }
 }
 
 function saveSettings(type) {
   if (type === 'wa') {
-    const token = document.getElementById('waFonnteToken').value;
-    const sender = document.getElementById('waSender').value;
-    if (!token && document.getElementById('waProvider').value === 'fonnte') { 
-      showToast('Token Fonnte wajib diisi untuk mode Direct', 'error'); 
-      return; 
+    const key = document.getElementById('waFonnteToken')?.value;
+    if (!key) { 
+        showToast('Token Fonnte wajib diisi', 'error'); 
+        return; 
     }
-    localStorage.setItem('waFonnteToken', token);
-    WA_CONFIG.token = token;
-    WA_CONFIG.sender = sender;
-    
-    showToast('Konfigurasi WhatsApp disimpan!', 'success');
-    renderSettings(); // Refresh status UI
+    localStorage.setItem('waFonnteToken', key);
+    showToast('Konfigurasi WhatsApp disimpan ke Browser', 'success');
+    renderSettings(); // Refresh UI status
   }
 }
 
@@ -1715,31 +1667,53 @@ function toggleNotifSetting(el) {
   showToast('Pengaturan notifikasi diperbarui', 'info');
 }
 
-function updateUptime() {
-  const elapsed = Math.floor((Date.now() - startTime) / 60000);
-  document.getElementById('uptimeDisplay').textContent = `Uptime: ${Math.floor(elapsed/60)}j ${elapsed%60}m`;
+function handleGlobalSearch(val) { 
+  if (currentPage === 'pesanan') { 
+    currentPesananPage = 1; 
+    renderPesanan(); 
+  } 
 }
 
-// ============================================================
-// INIT
-// ============================================================
+// ============ INITIALIZATION ============
 async function init() {
-  // Cek Supabase config di LocalStorage jika ada (Opsional logic)
-  // if(localStorage.getItem('supabaseUrl')) initSupabase();
-
+  console.log("System Starting...");
+  
+  // 1. Fix Z-Index Overlay
+  const notifPanel = document.getElementById('notifPanel');
+  const notifOverlay = document.getElementById('notifOverlay');
+  const modalDetail = document.getElementById('modalDetail');
+  const modalConfirm = document.getElementById('modalConfirm');
+  
+  // 2. Render Dashboard
   await renderDashboard();
   renderNotifPanel();
-  document.getElementById('modalDetail').addEventListener('click', (e) => { if (e.target === document.getElementById('modalDetail')) document.getElementById('modalDetail').classList.remove('open'); });
-  document.getElementById('modalConfirm').addEventListener('click', (e) => { if (e.target === document.getElementById('modalConfirm')) document.getElementById('modalConfirm').classList.remove('open'); });
   
-  // Force fix overlay close on load
-  document.getElementById('notifPanel').classList.remove('open');
-  document.getElementById('notifOverlay').classList.remove('open');
+  // 3. Event Listeners
+  if(modalDetail) {
+      modalDetail.addEventListener('click', (e) => { if (e.target === modalDetail) modalDetail.classList.remove('open'); });
+  }
+  if(modalConfirm) {
+      modalConfirm.addEventListener('click', (e) => { if (e.target === modalConfirm) modalConfirm.classList.remove('open'); });
+  }
+  if(notifOverlay) {
+      notifOverlay.addEventListener('click', () => {
+          if(notifPanel) notifPanel.classList.remove('open');
+          notifOverlay.classList.remove('open');
+      });
+  }
 
+  // 4. Uptime Timer
   setInterval(updateUptime, 10000);
   updateUptime();
 }
 
+function updateUptime() {
+  const elapsed = Math.floor((Date.now() - startTime) / 60000);
+  const display = document.getElementById('uptimeDisplay');
+  if(display) display.textContent = `Uptime: ${Math.floor(elapsed/60)}j ${elapsed%60}m`;
+}
+
+// Start Application
 document.addEventListener('DOMContentLoaded', init);
 </script>
 </body>
