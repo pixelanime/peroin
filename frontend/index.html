@@ -904,16 +904,14 @@
 </main>
 
 <script>
-// ============================================================
-// KONFIGURASI API BACKEND
-// ============================================================
 const API_BASE = 'https://peroin-production.up.railway.app';
 
-// ============================================================
-// DATA & STATE (Tidak lagi pakai data palsu, kosongkan saja)
-// ============================================================
 let orders = [];
-let notifications = [];
+let notifications = [
+  { id: 1, type: 'order', title: 'Pesanan Baru dari Shopee', desc: 'Rina Susanti memesan Kaos Polos Premium Cotton 30s', time: Date.now() - 300000, read: false },
+  { id: 2, type: 'payment', title: 'Pembayaran Dikonfirmasi', desc: 'Pesanan TKP482731 sudah dibayar', time: Date.now() - 900000, read: false },
+  { id: 3, type: 'shipping', title: 'Pengiriman Dalam Proses', desc: 'Pesanan SHP319284 sedang disiapkan', time: Date.now() - 1800000, read: false },
+];
 let waLogs = [];
 let currentPage = 'dashboard';
 let currentFilter = 'semua';
@@ -921,7 +919,6 @@ let currentPesananPage = 1;
 const PESANAN_PER_PAGE = 10;
 let startTime = Date.now();
 
-// Data statis (Untuk chart & tabel bawah, tidak masuk DB dulu)
 const MARKETPLACES = ['Shopee', 'Tokopedia', 'Lazada', 'TikTok Shop', 'WhatsApp'];
 const MP_CLASSES = { Shopee: 'mp-shopee', Tokopedia: 'mp-tokopedia', Lazada: 'mp-lazada', 'TikTok Shop': 'mp-tiktok', WhatsApp: 'mp-wa' };
 const MP_ICONS = { Shopee: 'fas fa-shopping-bag', Tokopedia: 'fas fa-store', Lazada: 'fas fa-star', 'TikTok Shop': 'fab fa-tiktok', WhatsApp: 'fab fa-whatsapp' };
@@ -931,9 +928,7 @@ const NAMA_PRODUK = ['Kaos Polos Premium Cotton 30s','Celana Jogger Slim Fit','T
 const trafikProduk = NAMA_PRODUK.slice(0, 6).map(p => ({ produk: p, marketplace: MARKETPLACES[Math.floor(Math.random()*5)], views: Math.floor(Math.random()*2000)+100, atc: Math.floor(Math.random()*300)+20, conv: (Math.random()*5+1).toFixed(1), trend: Math.random()>0.4 ? 'up' : 'down' }));
 const produkTerlaris = NAMA_PRODUK.slice(0, 8).map(p => ({ produk: p, marketplace: MARKETPLACES[Math.floor(Math.random()*5)], terjual: Math.floor(Math.random()*200)+10, revenue: Math.floor(Math.random()*10000000)+500000, stok: Math.floor(Math.random()*80), chart: Array.from({length:7}, () => Math.floor(Math.random()*45)+5) }));
 
-// ============================================================
-// UTILITAS
-// ============================================================
+function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
 function formatRp(n) { return 'Rp ' + n.toLocaleString('id-ID'); }
 function timeAgo(dateString) {
   const minutes = Math.floor((Date.now() - new Date(dateString).getTime()) / 60000);
@@ -966,9 +961,6 @@ function animateNumber(el, target, prefix = '', suffix = '') {
   requestAnimationFrame(step);
 }
 
-// ============================================================
-// NAVIGASI
-// ============================================================
 function switchPage(page, navEl) {
   currentPage = page;
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -996,30 +988,30 @@ function toggleSidebar() {
   else { sb.classList.toggle('collapsed'); mc.classList.toggle('expanded'); }
 }
 
-// ============================================================
-// DASHBOARD (SUDAH TERHUBUNG DATABASE)
-// ============================================================
+const chartTooltipStyle = {
+  backgroundColor: '#162019', borderColor: '#243d30', borderWidth: 1,
+  titleColor: '#e8f5ee', bodyColor: '#8aaa97',
+  titleFont: { family: 'Space Grotesk', size: 12 }, bodyFont: { family: 'JetBrains Mono', size: 11 },
+  padding: 10, cornerRadius: 8, boxWidth: 8, boxHeight: 8, boxPadding: 4
+};
+const chartGridStyle = { color: 'rgba(36,61,48,0.15)', drawBorder: false };
+const chartTickStyle = { color: '#3d5e4d', font: { size: 10 } };
+
 let chartPenjualan, chartMarketplace, chartTrafik, chartTrafikMP;
 
 async function renderDashboard() {
   try {
-    // 1. Ambil Statistik dari Backend
     const resStats = await fetch(`${API_BASE}/api/stats/dashboard`);
     const stats = await resStats.json();
-    
     animateNumber(document.getElementById('statHariIni'), stats.hariIni);
     animateNumber(document.getElementById('statBelumProses'), stats.belumProses);
     animateNumber(document.getElementById('statDikirim'), stats.dikirim);
     document.getElementById('statPendapatan').textContent = formatRp(stats.pendapatan);
     document.getElementById('badgePesanan').textContent = stats.belumProses;
-
-    // 2. Ambil 6 Pesanan Terbaru dari Backend
     const resOrders = await fetch(`${API_BASE}/api/orders?limit=6`);
     const jsonOrders = await resOrders.json();
     orders = jsonOrders.data;
-
-    const recentBody = document.getElementById('recentOrdersBody');
-    recentBody.innerHTML = orders.map(o => `
+    document.getElementById('recentOrdersBody').innerHTML = orders.map(o => `
       <tr>
         <td class="font-mono" style="font-size:12px;color:var(--accent);">${o.id}</td>
         <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;">${o.produk}</td>
@@ -1033,24 +1025,101 @@ async function renderDashboard() {
     console.error('Gagal memuat Dashboard:', err);
     showToast('Gagal terhubung ke Backend!', 'error');
   }
-
   renderChartPenjualan();
   renderChartMarketplace();
   renderChartTrafikDashboard();
 }
 
-// (Fungsi Chart tetap sama seperti sebelumnya, dipanggil di sini)
-function renderChartPenjualan() { /* ... copy dari file lama ... */ }
-function renderChartMarketplace() { /* ... copy dari file lama ... */ }
-function renderChartTrafikDashboard() { /* ... copy dari file lama ... */ }
-function switchChartPeriod(btn, period) { btn.parentElement.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active')); btn.classList.add('active'); renderChartPenjualan(); }
+function renderChartPenjualan() {
+  const ctx = document.getElementById('chartPenjualan').getContext('2d');
+  if (chartPenjualan) chartPenjualan.destroy();
+  const labels = []; const dataOrders = []; const dataRevenue = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(Date.now() - i * 86400000);
+    labels.push(d.toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric' }));
+    dataOrders.push(randInt(15, 65)); dataRevenue.push(randInt(500000, 5000000));
+  }
+  chartPenjualan = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Pesanan', data: dataOrders, backgroundColor: 'rgba(0,230,118,0.1)', borderColor: 'rgba(0,230,118,0.3)', borderWidth: 1, borderRadius: 4, yAxisID: 'y', order: 2 },
+        { label: 'Revenue', data: dataRevenue, type: 'line', borderColor: 'rgba(64,196,255,0.4)', backgroundColor: 'rgba(64,196,255,0.03)', fill: true, tension: 0.4, pointRadius: 0, pointHoverRadius: 3, pointHoverBackgroundColor: 'rgba(64,196,255,0.7)', yAxisID: 'y1', order: 1 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { position: 'top', align: 'end', labels: { color: '#5a7d68', font: { family: 'Space Grotesk', size: 11 }, boxWidth: 12, boxHeight: 3, padding: 12 } }, tooltip: chartTooltipStyle },
+      scales: {
+        x: { ticks: chartTickStyle, grid: chartGridStyle },
+        y: { position: 'left', ticks: chartTickStyle, grid: chartGridStyle },
+        y1: { position: 'right', ticks: { ...chartTickStyle, callback: v => 'Rp ' + (v/1000000).toFixed(1) + 'jt' }, grid: { display: false } }
+      }
+    }
+  });
+}
+
+function renderChartMarketplace() {
+  const ctx = document.getElementById('chartMarketplace').getContext('2d');
+  if (chartMarketplace) chartMarketplace.destroy();
+  const mpData = MARKETPLACES.map(mp => orders.filter(o => o.marketplace === mp).length);
+  const colors = ['rgba(238,77,45,0.45)', 'rgba(66,165,71,0.45)', 'rgba(0,105,210,0.45)', 'rgba(255,0,80,0.45)', 'rgba(37,211,102,0.45)'];
+  chartMarketplace = new Chart(ctx, {
+    type: 'doughnut',
+    data: { labels: MARKETPLACES, datasets: [{ data: mpData, backgroundColor: colors, borderWidth: 0, hoverOffset: 3 }] },
+    options: { responsive: true, maintainAspectRatio: false, cutout: '72%', plugins: { legend: { display: false }, tooltip: { ...chartTooltipStyle, displayColors: true } } }
+  });
+  document.getElementById('marketplaceLegend').innerHTML = MARKETPLACES.map((mp, i) => `
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+      <div style="display:flex;align-items:center;gap:8px;"><div style="width:8px;height:8px;border-radius:2px;background:${colors[i]};"></div><span style="font-size:12px;color:var(--text-secondary);">${mp}</span></div>
+      <span style="font-size:12px;font-weight:600;color:var(--text-secondary);" class="font-mono">${mpData[i]}</span>
+    </div>
+  `).join('');
+}
+
+function renderChartTrafikDashboard() {
+  const ctx = document.getElementById('chartTrafik').getContext('2d');
+  if (chartTrafik) chartTrafik.destroy();
+  const labels = []; const data = [];
+  for (let i = 29; i >= 0; i--) { labels.push(i % 5 === 0 ? i + 'm' : ''); data.push(randInt(10, 120)); }
+  chartTrafik = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        data, borderColor: 'rgba(0,230,118,0.25)',
+        backgroundColor: (context) => {
+          const chart = context.chart; const { ctx: c, chartArea } = chart;
+          if (!chartArea) return 'rgba(0,230,118,0.01)';
+          const gradient = c.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+          gradient.addColorStop(0, 'rgba(0,230,118,0.05)'); gradient.addColorStop(1, 'rgba(0,230,118,0.0)');
+          return gradient;
+        },
+        fill: true, tension: 0.4, pointRadius: 0, pointHoverRadius: 3, pointHoverBackgroundColor: 'rgba(0,230,118,0.5)', borderWidth: 1.5
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { ...chartTooltipStyle, displayColors: false } },
+      scales: { x: { ticks: chartTickStyle, grid: { display: false } }, y: { ticks: chartTickStyle, grid: chartGridStyle } }
+    }
+  });
+  animateNumber(document.getElementById('liveVisitors'), randInt(80, 350));
+  animateNumber(document.getElementById('liveViews'), randInt(400, 1800));
+}
+
+function switchChartPeriod(btn, period) {
+  btn.parentElement.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderChartPenjualan();
+}
 
 // ============================================================
-// PESANAN (SUDAH TERHUBUNG DATABASE)
+// PESANAN
 // ============================================================
 function filterPesanan(btn, filter) {
-  currentFilter = filter;
-  currentPesananPage = 1;
+  currentFilter = filter; currentPesananPage = 1;
   btn.parentElement.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   renderPesanan();
@@ -1058,23 +1127,17 @@ function filterPesanan(btn, filter) {
 
 async function renderPesanan() {
   try {
-    // Susun parameter URL berdasarkan filter
     let url = `${API_BASE}/api/orders?page=${currentPesananPage}&limit=${PESANAN_PER_PAGE}`;
     if (currentFilter !== 'semua') url += `&status=${currentFilter}`;
     const mpFilter = document.getElementById('filterMP')?.value;
     if (mpFilter && mpFilter !== 'semua') url += `&marketplace=${mpFilter}`;
     const searchVal = document.getElementById('globalSearch')?.value?.toLowerCase();
     if (searchVal) url += `&search=${searchVal}`;
-
     const res = await fetch(url);
     const json = await res.json();
-    
-    const pageData = json.data;
-    const total = json.total;
+    const pageData = json.data; const total = json.total;
     const totalPages = Math.max(1, Math.ceil(total / PESANAN_PER_PAGE));
-
-    const body = document.getElementById('pesananBody');
-    body.innerHTML = pageData.map(o => `
+    document.getElementById('pesananBody').innerHTML = pageData.map(o => `
       <tr>
         <td><input type="checkbox"></td>
         <td class="font-mono" style="font-size:12px;color:var(--accent);cursor:pointer;" onclick="openDetail('${o.id}')">${o.id}</td>
@@ -1095,36 +1158,24 @@ async function renderPesanan() {
         </td>
       </tr>
     `).join('');
-
     const start = (currentPesananPage - 1) * PESANAN_PER_PAGE;
     document.getElementById('pesananInfo').textContent = `Menampilkan ${start+1}-${Math.min(start+PESANAN_PER_PAGE, total)} dari ${total} pesanan`;
-
-    // Pagination logic
     const pag = document.getElementById('pesananPagination');
     let pagHtml = `<button class="btn btn-ghost btn-sm" ${currentPesananPage <= 1 ? 'disabled style="opacity:0.4"' : ''} onclick="currentPesananPage--;renderPesanan()"><i class="fas fa-chevron-left"></i></button>`;
     for (let i = 1; i <= totalPages; i++) {
-      if (totalPages > 7 && i > 3 && i < totalPages - 1 && Math.abs(i - currentPesananPage) > 1) {
-        if (i === 4 || i === totalPages - 2) pagHtml += `<span style="color:var(--text-muted);padding:0 4px;">...</span>`;
-        continue;
-      }
+      if (totalPages > 7 && i > 3 && i < totalPages - 1 && Math.abs(i - currentPesananPage) > 1) { if (i === 4 || i === totalPages - 2) pagHtml += `<span style="color:var(--text-muted);padding:0 4px;">...</span>`; continue; }
       pagHtml += `<button class="btn ${i === currentPesananPage ? 'btn-primary' : 'btn-ghost'} btn-sm" onclick="currentPesananPage=${i};renderPesanan()">${i}</button>`;
     }
     pagHtml += `<button class="btn btn-ghost btn-sm" ${currentPesananPage >= totalPages ? 'disabled style="opacity:0.4"' : ''} onclick="currentPesananPage++;renderPesanan()"><i class="fas fa-chevron-right"></i></button>`;
     pag.innerHTML = pagHtml;
-  } catch(err) {
-    showToast('Gagal memuat pesanan', 'error');
-  }
+  } catch(err) { showToast('Gagal memuat pesanan', 'error'); }
 }
 
-// ============================================================
-// AKSI PESANAN (MENGIRIM PERINTAH KE DATABASE)
-// ============================================================
 async function prosesPesanan(id) {
   await fetch(`${API_BASE}/api/orders/${id}/status`, { method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ status: 'proses' }) });
   if(currentPage==='pesanan') renderPesanan(); else renderDashboard();
   showToast(`Pesanan ${id} diproses`, 'success');
 }
-
 async function kirimPesanan(id) {
   const kurir = ['JNE','J&T Express','SiCepat','AnterAja'][Math.floor(Math.random()*4)];
   const resi = kurir.substring(0,2).toUpperCase() + Math.floor(Math.random()*9000000000+1000000000);
@@ -1132,13 +1183,11 @@ async function kirimPesanan(id) {
   if(currentPage==='pesanan') renderPesanan(); else renderDashboard();
   showToast(`Pesanan ${id} dikirim via ${kurir}`, 'success');
 }
-
 async function selesaiPesanan(id) {
   await fetch(`${API_BASE}/api/orders/${id}/status`, { method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ status: 'selesai' }) });
   if(currentPage==='pesanan') renderPesanan(); else renderDashboard();
   showToast(`Pesanan ${id} selesai`, 'success');
 }
-
 async function batalPesanan(id) {
   showConfirm('Batalkan Pesanan?', `Yakin ingin membatalkan pesanan <strong>${id}</strong>?`, async () => {
     await fetch(`${API_BASE}/api/orders/${id}/status`, { method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ status: 'batal' }) });
@@ -1146,85 +1195,290 @@ async function batalPesanan(id) {
     showToast(`Pesanan ${id} dibatalkan`, 'warning');
   });
 }
-
 async function simulasiPesananBaru() {
   const mp = MARKETPLACES[Math.floor(Math.random()*5)];
   const qty = Math.floor(Math.random()*3)+1;
   const price = Math.floor(Math.random()*250000)+35000;
-  const newOrder = {
-    id: 'SIM' + Math.floor(Math.random()*900000+100000),
-    pembeli: 'Customer Simulasi',
-    phone: '6281234567890',
-    produk: NAMA_PRODUK[Math.floor(Math.random()*NAMA_PRODUK.length)],
-    marketplace: mp, qty, price, total: price*qty, status: 'baru'
-  };
+  const newOrder = { id: 'SIM' + Math.floor(Math.random()*900000+100000), pembeli: 'Customer Simulasi', phone: '6281234567890', produk: NAMA_PRODUK[Math.floor(Math.random()*NAMA_PRODUK.length)], marketplace: mp, qty, price, total: price*qty, status: 'baru' };
   await fetch(`${API_BASE}/api/orders`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(newOrder) });
   if(currentPage==='pesanan') renderPesanan(); else renderDashboard();
   showToast(`Pesanan baru dari ${mp} masuk!`, 'success');
 }
-
 function handleGlobalSearch(val) { if (currentPage === 'pesanan') { currentPesananPage = 1; renderPesanan(); } }
 
 // ============================================================
-// MODALS, TRACKING, WA LOGS, NOTIFIKASI, SETTINGS
-// (Fungsi-fungsi ini copy mentah dari file lama, TIDAK PERLU diubah 
-//  karena sifatnya cuma UI / buka-tutup window saja)
+// DETAIL, MODAL, NOTIFIKASI
 // ============================================================
 async function openDetail(id) {
   const res = await fetch(`${API_BASE}/api/orders/${id}`);
   const o = await res.json();
-  // ... (Paste seluruh isi fungsi openDetail dari file HTML lama kamu di sini, 
-  //       lalu ganti semua "o.waktu" menjadi "o.created_at")
+  const modal = document.getElementById('modalDetail');
+  const content = document.getElementById('modalDetailContent');
+  const timelineSteps = [
+    { label: 'Pesanan Dibuat', desc: timeAgo(o.created_at), done: true },
+    { label: 'Pembayaran Dikonfirmasi', desc: o.status !== 'baru' ? 'Sudah dibayar' : 'Menunggu pembayaran', done: ['proses','kirim','selesai'].includes(o.status), current: o.status === 'baru' },
+    { label: 'Sedang Diproses', desc: 'Barang sedang disiapkan', done: ['kirim','selesai'].includes(o.status), current: o.status === 'proses' },
+    { label: 'Dikirim', desc: o.resi ? `via ${o.kurir} — ${o.resi}` : '-', done: o.status === 'selesai', current: o.status === 'kirim' },
+    { label: 'Selesai', desc: 'Barang diterima pembeli', done: o.status === 'selesai', current: false },
+  ];
+  content.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:20px;">
+      <div><div style="font-size:18px;font-weight:700;" class="font-mono">${o.id}</div><span class="mp-badge ${MP_CLASSES[o.marketplace]}" style="margin-top:6px;"><i class="${MP_ICONS[o.marketplace]}"></i> ${o.marketplace}</span></div>
+      <button onclick="document.getElementById('modalDetail').classList.remove('open')" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:20px;"><i class="fas fa-xmark"></i></button>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+      <div style="padding:14px;background:var(--bg-primary);border-radius:10px;"><div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">Pembeli</div><div style="font-size:14px;font-weight:600;">${o.pembeli}</div><div style="font-size:12px;color:var(--text-muted);" class="font-mono">${o.phone}</div></div>
+      <div style="padding:14px;background:var(--bg-primary);border-radius:10px;"><div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">Status</div><span class="status ${STATUS_CLASSES[o.status]}"><span class="status-dot"></span>${STATUS_LABELS[o.status]}</span></div>
+    </div>
+    <div style="padding:16px;background:var(--bg-primary);border-radius:12px;margin-bottom:20px;">
+      <div style="font-size:13px;font-weight:700;margin-bottom:10px;">Detail Produk</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;"><div><div style="font-size:14px;font-weight:600;">${o.produk}</div><div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Qty: ${o.qty} × ${formatRp(o.price)}</div></div><div style="font-size:16px;font-weight:700;color:var(--accent);" class="font-mono">${formatRp(o.total)}</div></div>
+    </div>
+    ${o.resi ? `<div style="padding:16px;background:var(--bg-primary);border-radius:12px;margin-bottom:20px;"><div style="font-size:13px;font-weight:700;margin-bottom:10px;">Info Pengiriman</div><div style="display:flex;justify-content:space-between;"><div><span style="font-size:12px;color:var(--text-muted);">Kurir</span><div style="font-size:14px;font-weight:600;">${o.kurir}</div></div><div><span style="font-size:12px;color:var(--text-muted);">No. Resi</span><div style="font-size:14px;font-weight:600;" class="font-mono">${o.resi}</div></div><button class="btn btn-ghost btn-sm" onclick="navigator.clipboard.writeText('${o.resi}');showToast('Resi disalin','info')"><i class="fas fa-copy"></i> Salin</button></div></div>` : ''}
+    <div style="padding:16px;background:var(--bg-primary);border-radius:12px;margin-bottom:20px;">
+      <div style="font-size:13px;font-weight:700;margin-bottom:14px;">Tracking Timeline</div>
+      ${timelineSteps.map(s => `<div class="timeline-item ${s.done ? 'completed' : ''} ${s.current ? 'current' : ''}"><div class="timeline-dot"></div><div style="font-size:13px;font-weight:${s.done || s.current ? '600' : '400'};color:${s.done ? 'var(--text-primary)' : s.current ? 'var(--info)' : 'var(--text-muted)'}">${s.label}</div><div style="font-size:12px;color:var(--text-muted);margin-top:2px;">${s.desc}</div></div>`).join('')}
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button class="btn btn-ghost" onclick="kirimWAManual('${o.id}')"><i class="fab fa-whatsapp"></i> Kirim WA</button>
+      ${o.status === 'baru' ? `<button class="btn btn-primary" onclick="prosesPesanan('${o.id}');document.getElementById('modalDetail').classList.remove('open');"><i class="fas fa-play"></i> Proses</button>` : ''}
+      ${o.status === 'proses' ? `<button class="btn btn-primary" onclick="kirimPesanan('${o.id}');document.getElementById('modalDetail').classList.remove('open');"><i class="fas fa-truck"></i> Kirim</button>` : ''}
+      ${o.status === 'kirim' ? `<button class="btn btn-primary" onclick="selesaiPesanan('${o.id}');document.getElementById('modalDetail').classList.remove('open');"><i class="fas fa-check"></i> Selesai</button>` : ''}
+    </div>`;
+  modal.classList.add('open');
 }
 
-function showConfirm(title, desc, onConfirm) { /* copy dari lama */ }
-function toggleNotifPanel() { /* copy dari lama */ }
-function markAllRead() { /* copy dari lama */ }
-function renderNotifPanel() { /* copy dari lama */ }
+function showConfirm(title, desc, onConfirm) {
+  const modal = document.getElementById('modalConfirm');
+  document.getElementById('modalConfirmContent').innerHTML = `
+    <div style="text-align:center;margin-bottom:20px;">
+      <div style="width:56px;height:56px;border-radius:16px;background:var(--warning-dim);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;"><i class="fas fa-exclamation-triangle" style="font-size:24px;color:var(--warning);"></i></div>
+      <div style="font-size:18px;font-weight:700;">${title}</div>
+      <div style="font-size:13px;color:var(--text-secondary);margin-top:8px;line-height:1.6;">${desc}</div>
+    </div>
+    <div style="display:flex;gap:10px;">
+      <button class="btn btn-ghost" style="flex:1;" onclick="document.getElementById('modalConfirm').classList.remove('open')">Batal</button>
+      <button class="btn btn-danger" style="flex:1;" id="confirmBtn">Ya, Lanjutkan</button>
+    </div>`;
+  modal.classList.add('open');
+  document.getElementById('confirmBtn').onclick = () => { modal.classList.remove('open'); onConfirm(); };
+}
 
+function toggleNotifPanel() { document.getElementById('notifPanel').classList.toggle('open'); document.getElementById('notifOverlay').classList.toggle('open'); }
+function markAllRead() { notifications.forEach(n => n.read = true); renderNotifPanel(); showToast('Semua notifikasi ditandai sudah dibaca', 'success'); }
+
+function renderNotifPanel() {
+  const unread = notifications.filter(n => !n.read).length;
+  document.getElementById('notifCount').textContent = unread + ' belum dibaca';
+  document.getElementById('bellBadge').textContent = unread;
+  document.getElementById('bellBadge').style.display = unread > 0 ? 'flex' : 'none';
+  const typeIcons = { order: 'fa-shopping-bag', payment: 'fa-credit-card', shipping: 'fa-truck', warning: 'fa-exclamation-triangle' };
+  const typeColors = { order: 'var(--accent)', payment: 'var(--info)', shipping: 'var(--purple)', warning: 'var(--warning)' };
+  document.getElementById('notifList').innerHTML = notifications.map(n => `
+    <div class="notif-item ${n.read ? '' : 'unread'}" onclick="notifications.find(x=>x.id===${n.id}).read=true;renderNotifPanel();">
+      <div style="display:flex;align-items:start;gap:12px;">
+        <div style="width:32px;height:32px;border-radius:8px;background:${n.read ? 'var(--bg-card)' : 'var(--accent-glow)'};display:flex;align-items:center;justify-content:center;flex-shrink:0;"><i class="fas ${typeIcons[n.type]||'fa-bell'}" style="font-size:13px;color:${typeColors[n.type]||'var(--text-muted)'}"></i></div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:13px;font-weight:600;${n.read?'color:var(--text-secondary)':'color:var(--text-primary)'}">${n.title}</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${n.desc}</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:4px;" class="font-mono">${timeAgo(Math.floor((Date.now()-n.time)/60000))}</div>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+// ============================================================
+// WA LOGS
+// ============================================================
 async function renderWALog() {
-  const res = await fetch(`${API_BASE}/api/wa-logs`);
-  waLogs = await res.json();
-  document.getElementById('waSent').textContent = waLogs.filter(l => l.status === 'terkirim' || l.status === 'dibaca').length;
-  document.getElementById('waFailed').textContent = waLogs.filter(l => l.status === 'gagal').length;
-  document.getElementById('waRead').textContent = waLogs.filter(l => l.status === 'dibaca').length;
-  document.getElementById('waPending').textContent = waLogs.filter(l => l.status === 'pending').length;
-  
-  const statusStyles = { terkirim: 'color:var(--accent)', dibaca: 'color:var(--info)', gagal: 'color:var(--danger)', pending: 'color:var(--warning)' };
-  const statusIcons = { terkirim: 'fa-check', dibaca: 'fa-check-double', gagal: 'fa-times', pending: 'fa-clock' };
-  document.getElementById('waLogBody').innerHTML = waLogs.map(l => `
-    <tr>
-      <td class="font-mono" style="font-size:12px;color:var(--text-muted);">${new Date(l.created_at).toLocaleTimeString('id-ID', {hour:'2-digit',minute:'2-digit'})}</td>
-      <td class="font-mono" style="font-size:12px;">${l.phone}</td>
-      <td class="font-mono" style="font-size:12px;color:var(--accent);">${l.order_id}</td>
-      <td style="font-size:12px;">${l.type}</td>
-      <td style="font-size:12px;font-weight:600;${statusStyles[l.status]}"><i class="fas ${statusIcons[l.status]}"></i> ${l.status.charAt(0).toUpperCase() + l.status.slice(1)}</td>
-    </tr>
-  `).join('');
+  try {
+    const res = await fetch(`${API_BASE}/api/wa-logs`);
+    waLogs = await res.json();
+    document.getElementById('waSent').textContent = waLogs.filter(l => l.status === 'terkirim' || l.status === 'dibaca').length;
+    document.getElementById('waFailed').textContent = waLogs.filter(l => l.status === 'gagal').length;
+    document.getElementById('waRead').textContent = waLogs.filter(l => l.status === 'dibaca').length;
+    document.getElementById('waPending').textContent = waLogs.filter(l => l.status === 'pending').length;
+    const statusStyles = { terkirim: 'color:var(--accent)', dibaca: 'color:var(--info)', gagal: 'color:var(--danger)', pending: 'color:var(--warning)' };
+    const statusIcons = { terkirim: 'fa-check', dibaca: 'fa-check-double', gagal: 'fa-times', pending: 'fa-clock' };
+    document.getElementById('waLogBody').innerHTML = waLogs.map(l => `
+      <tr>
+        <td class="font-mono" style="font-size:12px;color:var(--text-muted);">${new Date(l.created_at).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'})}</td>
+        <td class="font-mono" style="font-size:12px;">${l.phone}</td>
+        <td class="font-mono" style="font-size:12px;color:var(--accent);">${l.order_id}</td>
+        <td style="font-size:12px;">${l.type}</td>
+        <td style="font-size:12px;font-weight:600;${statusStyles[l.status]}"><i class="fas ${statusIcons[l.status]}"></i> ${l.status.charAt(0).toUpperCase()+l.status.slice(1)}</td>
+      </tr>`).join('');
+  } catch(e) { showToast('Gagal memuat log WA', 'error'); }
 }
 
+// ============================================================
+// KIRIM WA NYATA VIA FONNTE
+// ============================================================
+async function kirimWAManual(id) {
+  try {
+    const res = await fetch(`${API_BASE}/api/orders/${id}`);
+    const o = await res.json();
+    const message = `Halo ${o.pembeli}, pesanan Anda di Peroin:\n\n📦 ${o.produk} x${o.qty}\n💰 ${formatRp(o.total)}\n🆔 ${o.id}\n\nStatus: ${STATUS_LABELS[o.status]}${o.resi ? '\nKurir: ' + o.kurir + '\nResi: ' + o.resi : ''}\n\nTerima kasih!`;
+    const waRes = await fetch(`${API_BASE}/api/send-wa`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone: o.phone, message })
+    });
+    const waResult = await waRes.json();
+    if (waResult.success) { showToast(`WA berhasil dikirim ke ${o.phone}`, 'success'); }
+    else { showToast(`Gagal kirim WA: ${waResult.error}`, 'error'); }
+    document.getElementById('modalDetail').classList.remove('open');
+  } catch (err) { showToast('Gagal mengirim WhatsApp', 'error'); }
+}
+
+// ============================================================
+// TRACKING
+// ============================================================
 async function renderTracking() {
-  const search = document.getElementById('trackingSearch')?.value?.toLowerCase() || '';
-  const filter = document.getElementById('trackingFilter')?.value || 'kirim';
-  let url = `${API_BASE}/api/orders?limit=50`;
-  if (filter !== 'semua') url += `&status=${filter}`;
-  if(search) url += `&search=${search}`;
-  
-  const res = await fetch(url);
-  const json = await res.json();
-  const filtered = json.data.filter(o => o.resi); // Hanya yang punya resi
-
-  const list = document.getElementById('trackingList');
-  // ... (Paste logic rendering tracking card dari file lama di sini, ganti o.waktu jadi o.created_at)
+  try {
+    const search = document.getElementById('trackingSearch')?.value?.toLowerCase() || '';
+    const filter = document.getElementById('trackingFilter')?.value || 'kirim';
+    let url = `${API_BASE}/api/orders?limit=50`;
+    if (filter !== 'semua') url += `&status=${filter}`;
+    if (search) url += `&search=${search}`;
+    const res = await fetch(url);
+    const json = await res.json();
+    const filtered = json.data.filter(o => o.resi);
+    const list = document.getElementById('trackingList');
+    if (filtered.length === 0) { list.innerHTML = `<div class="card" style="text-align:center;padding:60px;color:var(--text-muted);grid-column:1/-1;"><i class="fas fa-box-open" style="font-size:40px;margin-bottom:12px;display:block;"></i>Tidak ada pengiriman ditemukan</div>`; return; }
+    list.innerHTML = filtered.map(o => {
+      const steps = [{ label: 'Dibuat', done: true }, { label: 'Diproses', done: true }, { label: 'Dikirim', done: o.status==='selesai'||o.status==='kirim', current: o.status==='kirim' }, { label: 'Diterima', done: o.status==='selesai' }];
+      const progress = steps.filter(s => s.done).length / steps.length * 100;
+      return `<div class="card fade-in" style="cursor:pointer;" onclick="openDetail('${o.id}')">
+        <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:14px;"><div><div style="font-size:14px;font-weight:700;" class="font-mono">${o.id}</div><div style="font-size:12px;color:var(--text-muted);margin-top:2px;">${o.pembeli}</div></div><span class="status ${STATUS_CLASSES[o.status]}"><span class="status-dot"></span>${STATUS_LABELS[o.status]}</span></div>
+        <div style="padding:12px;background:var(--bg-primary);border-radius:10px;margin-bottom:14px;">
+          <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><span style="font-size:12px;color:var(--text-muted);">No. Resi</span><span class="font-mono" style="font-size:12px;font-weight:600;">${o.resi}</span></div>
+          <div style="display:flex;justify-content:space-between;"><span style="font-size:12px;color:var(--text-muted);">Kurir</span><span style="font-size:12px;font-weight:600;">${o.kurir}</span></div>
+        </div>
+        <div style="margin-bottom:14px;">
+          <div style="display:flex;justify-content:space-between;margin-bottom:6px;">${steps.map(s => `<span style="font-size:11px;${s.done?'color:var(--accent)':'color:var(--text-muted)'};font-weight:${s.current?'700':'400'}">${s.label}</span>`).join('')}</div>
+          <div style="height:4px;background:var(--border);border-radius:2px;overflow:hidden;"><div style="height:100%;width:${progress}%;background:linear-gradient(90deg,var(--accent),var(--info));border-radius:2px;transition:width 0.5s;"></div></div>
+        </div>
+        <div style="font-size:12px;color:var(--text-muted);">${o.produk} — ${formatRp(o.total)}</div>
+      </div>`;
+    }).join('');
+  } catch(e) { showToast('Gagal memuat tracking', 'error'); }
 }
 
-function renderTrafik() { /* copy dari lama */ }
-function renderProduk() { /* copy dari lama */ }
-function renderSettings() { /* copy dari lama */ }
-function updateWAToggle() { /* copy dari lama */ }
-function saveSettings(type) { /* copy dari lama */ }
-function toggleNotifSetting(el) { /* copy dari lama */ }
-function kirimWAManual(id) { /* copy dari lama */ }
+// ============================================================
+// TRAFIK
+// ============================================================
+function renderTrafik() {
+  const ctx = document.getElementById('chartTrafikMP').getContext('2d');
+  if (chartTrafikMP) chartTrafikMP.destroy();
+  const hours = [];
+  for (let i = 23; i >= 0; i--) hours.push(i + ':00');
+  const mpColors = ['rgba(238,77,45,0.35)', 'rgba(66,165,71,0.35)', 'rgba(0,105,210,0.35)', 'rgba(255,0,80,0.35)', 'rgba(37,211,102,0.35)'];
+  chartTrafikMP = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: hours,
+      datasets: MARKETPLACES.map((mp, idx) => ({
+        label: mp, data: Array.from({length: 24}, () => randInt(20, 200)),
+        borderColor: mpColors[idx], backgroundColor: 'transparent',
+        tension: 0.4, pointRadius: 0, pointHoverRadius: 3, borderWidth: 1.5
+      }))
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { labels: { color: '#5a7d68', font: { family: 'Space Grotesk', size: 11 }, usePointStyle: true, pointStyle: 'circle', boxWidth: 6, padding: 16 } }, tooltip: chartTooltipStyle },
+      scales: {
+        x: { ticks: { ...chartTickStyle, maxRotation: 0, maxTicksLimit: 12 }, grid: chartGridStyle },
+        y: { ticks: chartTickStyle, grid: chartGridStyle }
+      }
+    }
+  });
+  document.getElementById('trafikProdukBody').innerHTML = trafikProduk.map(p => `
+    <tr>
+      <td style="font-weight:600;max-width:200px;overflow:hidden;text-overflow:ellipsis;">${p.produk}</td>
+      <td><span class="mp-badge ${MP_CLASSES[p.marketplace]}"><i class="${MP_ICONS[p.marketplace]}"></i> ${p.marketplace}</span></td>
+      <td class="font-mono">${p.views.toLocaleString()}</td>
+      <td class="font-mono">${p.atc.toLocaleString()}</td>
+      <td class="font-mono" style="font-weight:600;color:${parseFloat(p.conv)>3?'var(--accent)':'var(--text-secondary)'};">${p.conv}%</td>
+      <td><i class="fas fa-arrow-${p.trend}" style="color:${p.trend==='up'?'var(--accent)':'var(--danger)'}"></i></td>
+    </tr>`).join('');
+}
+
+// ============================================================
+// PRODUK
+// ============================================================
+function renderProduk() {
+  produkTerlaris.sort((a, b) => b.terjual - a.terjual);
+  document.getElementById('produkBody').innerHTML = produkTerlaris.map((p, i) => {
+    const max = Math.max(...p.chart); const min = Math.min(...p.chart); const range = max-min||1;
+    const points = p.chart.map((v, idx) => `${idx*14},${30-((v-min)/range)*24}`).join(' ');
+    return `<tr>
+      <td style="font-weight:700;color:${i<3?'var(--accent)':'var(--text-muted)'};">#${i+1}</td>
+      <td style="font-weight:600;max-width:200px;overflow:hidden;text-overflow:ellipsis;">${p.produk}</td>
+      <td><span class="mp-badge ${MP_CLASSES[p.marketplace]}"><i class="${MP_ICONS[p.marketplace]}"></i> ${p.marketplace}</span></td>
+      <td class="font-mono" style="font-weight:700;">${p.terjual}</td>
+      <td class="font-mono" style="font-weight:600;">${formatRp(p.revenue)}</td>
+      <td><span style="font-weight:600;color:${p.stok<5?'var(--danger)':p.stok<20?'var(--warning)':'var(--text-primary)'};">${p.stok}</span>${p.stok<5?'<i class="fas fa-exclamation-circle" style="color:var(--danger);font-size:11px;margin-left:4px;"></i>':''}</td>
+      <td><svg width="84" height="32" style="overflow:visible;"><polyline points="${points}" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></td>
+    </tr>`;
+  }).join('');
+}
+
+// ============================================================
+// SETTINGS
+// ============================================================
+function renderSettings() {
+  const mpConfigs = [
+    { name: 'Shopee', color: '#ee4d2d', icon: 'fas fa-shopping-bag', fields: ['Shop ID', 'Partner Key', 'Secret Key'] },
+    { name: 'Tokopedia', color: '#42a547', icon: 'fas fa-store', fields: ['App ID', 'Client Secret', 'FS ID'] },
+    { name: 'Lazada', color: '#0069d2', icon: 'fas fa-star', fields: ['App Key', 'App Secret', 'Access Token'] },
+    { name: 'TikTok Shop', color: '#ff0050', icon: 'fab fa-tiktok', fields: ['App Key', 'App Secret', 'Shop ID'] },
+  ];
+  document.getElementById('marketplaceConfig').innerHTML = mpConfigs.map(mp => `
+    <div style="padding:16px;background:var(--bg-primary);border-radius:12px;border:1px solid var(--border);">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <div style="display:flex;align-items:center;gap:10px;"><div style="width:32px;height:32px;border-radius:8px;background:${mp.color}20;display:flex;align-items:center;justify-content:center;"><i class="${mp.icon}" style="color:${mp.color};font-size:14px;"></i></div><span style="font-size:14px;font-weight:700;">${mp.name}</span></div>
+        <span style="font-size:11px;padding:3px 10px;border-radius:6px;background:var(--warning-dim);color:var(--warning);font-weight:600;">Belum terhubung</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px;">${mp.fields.map(f => `<input type="password" class="input" placeholder="${f}..." style="font-size:12px;padding:8px 12px;">`).join('')}</div>
+      <button class="btn btn-ghost btn-sm" style="margin-top:10px;width:100%;justify-content:center;" onclick="showToast('Koneksi ${mp.name} disimpan','success')"><i class="fas fa-plug"></i> Hubungkan ${mp.name}</button>
+    </div>`).join('');
+  const connections = [
+    { name: 'WhatsApp Bot', icon: 'fab fa-whatsapp', status: 'terhubung', color: 'var(--accent)' },
+    { name: 'Shopee API', icon: 'fas fa-shopping-bag', status: 'tidak terhubung', color: 'var(--danger)' },
+    { name: 'Tokopedia API', icon: 'fas fa-store', status: 'tidak terhubung', color: 'var(--danger)' },
+    { name: 'Lazada API', icon: 'fas fa-star', status: 'tidak terhubung', color: 'var(--danger)' },
+    { name: 'TikTok Shop API', icon: 'fab fa-tiktok', status: 'tidak terhubung', color: 'var(--danger)' },
+    { name: 'Webhook Receiver', icon: 'fas fa-satellite-dish', status: 'aktif', color: 'var(--accent)' },
+  ];
+  document.getElementById('connectionStatus').innerHTML = connections.map(c => `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px;background:var(--bg-primary);border-radius:10px;">
+      <div style="display:flex;align-items:center;gap:10px;"><i class="${c.icon}" style="color:var(--text-muted);width:18px;text-align:center;"></i><span style="font-size:13px;font-weight:600;">${c.name}</span></div>
+      <div style="display:flex;align-items:center;gap:6px;"><div style="width:8px;height:8px;border-radius:50%;background:${c.color};"></div><span style="font-size:12px;color:${c.color};font-weight:600;">${c.status}</span></div>
+    </div>`).join('');
+  updateWAToggle();
+}
+
+function updateWAToggle() {
+  const checked = document.getElementById('waAutoNotif')?.checked;
+  const toggle = document.getElementById('waToggle');
+  const dot = document.getElementById('waToggleDot');
+  if (toggle) { toggle.style.background = checked ? 'var(--accent)' : 'var(--border)'; dot.style.left = checked ? '23px' : '3px'; }
+}
+document.addEventListener('change', (e) => { if (e.target.id === 'waAutoNotif') updateWAToggle(); });
+
+function saveSettings(type) {
+  if (type === 'wa') {
+    const key = document.getElementById('waApiKey').value;
+    const sender = document.getElementById('waSender').value;
+    if (!key || !sender) { showToast('API Key dan Nomor Pengirim wajib diisi', 'error'); return; }
+    showToast('Konfigurasi WhatsApp Bot berhasil disimpan', 'success');
+  }
+}
+
+function toggleNotifSetting(el) {
+  showToast('Pengaturan notifikasi diperbarui', 'info');
+}
 
 function updateUptime() {
   const elapsed = Math.floor((Date.now() - startTime) / 60000);
@@ -1232,20 +1486,27 @@ function updateUptime() {
 }
 
 // ============================================================
-// INISIALISASI
+// INIT
 // ============================================================
 async function init() {
-  await renderDashboard(); // Pakai await karena sekarang fetch data dari internet
+  await renderDashboard();
   renderNotifPanel();
   updateWAToggle();
-  
-  // Toggle styling (copy dari file lama jika ada)
-  document.querySelectorAll('.notif-toggle').forEach(t => { /* copy dari lama */ });
-
+  document.querySelectorAll('.notif-toggle').forEach(t => {
+    t.style.display = 'none';
+    const span = document.createElement('span');
+    span.style.cssText = 'position:relative;width:44px;height:24px;cursor:pointer;flex-shrink:0;';
+    span.innerHTML = `<span style="position:absolute;inset:0;background:var(--border);border-radius:12px;transition:0.3s;"></span><span style="position:absolute;top:3px;left:3px;width:18px;height:18px;background:#fff;border-radius:50%;transition:0.3s;"></span>`;
+    t.parentElement.insertBefore(span, t);
+    span.addEventListener('click', () => {
+      t.checked = !t.checked; t.dispatchEvent(new Event('change'));
+      span.children[0].style.background = t.checked ? 'var(--accent)' : 'var(--border)';
+      span.children[1].style.left = t.checked ? '23px' : '3px';
+    });
+    if (t.checked) { span.children[0].style.background = 'var(--accent)'; span.children[1].style.left = '23px'; }
+  });
   setInterval(updateUptime, 10000);
   updateUptime();
-
-  // Modal close on overlay click
   document.getElementById('modalDetail').addEventListener('click', (e) => { if (e.target === document.getElementById('modalDetail')) document.getElementById('modalDetail').classList.remove('open'); });
   document.getElementById('modalConfirm').addEventListener('click', (e) => { if (e.target === document.getElementById('modalConfirm')) document.getElementById('modalConfirm').classList.remove('open'); });
 }

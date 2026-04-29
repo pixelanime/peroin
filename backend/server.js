@@ -124,7 +124,44 @@ app.post('/api/wa-logs', async (req, res) => {
   if (error) return res.status(500).json({ error: error.message });
   res.status(201).json(data);
 });
+// 6b. Kirim WhatsApp Nyata via Fonnte
+app.post('/api/send-wa', async (req, res) => {
+  const { phone, message } = req.body;
 
+  if (!phone || !message) {
+    return res.status(400).json({ error: 'Phone dan message wajib diisi' });
+  }
+
+  try {
+    const fonnteResponse = await fetch('https://api.fonnte.com/send', {
+      method: 'POST',
+      headers: {
+        'Authorization': req.headers['x-fonnte-key'] || process.env.FONNTE_API_KEY,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        target: phone,
+        message: message,
+        countryCode: '62'
+      })
+    });
+
+    const result = await fonnteResponse.json();
+    
+    // Simpan ke log WA
+    await supabase.from('wa_logs').insert([{
+      phone,
+      order_id: message.match(/([A-Z]{2,3}\d{6})/)?.[1] || '-',
+      type: 'Manual',
+      status: result.status ? 'terkirim' : 'gagal',
+      created_at: new Date().toISOString()
+    }]);
+
+    res.json({ success: true, data: result });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 // 7. Endpoint dummy untuk Webhook (Nanti diisi Shopee/Tokopedia)
 app.post('/webhook/shopee', (req, res) => {
   console.log('Webhook Shopee diterima:', req.body);
