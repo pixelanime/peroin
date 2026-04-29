@@ -408,6 +408,32 @@
   .fade-in:nth-child(4) { animation-delay: 0.2s; }
   .fade-in:nth-child(5) { animation-delay: 0.25s; }
   .fade-in:nth-child(6) { animation-delay: 0.3s; }
+
+  /* Custom Toggle Switch */
+  .switch {
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 24px;
+  }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .slider {
+    position: absolute; cursor: pointer;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-color: var(--border);
+    transition: .4s;
+    border-radius: 24px;
+  }
+  .slider:before {
+    position: absolute; content: "";
+    height: 18px; width: 18px;
+    left: 3px; bottom: 3px;
+    background-color: white;
+    transition: .4s;
+    border-radius: 50%;
+  }
+  input:checked + .slider { background-color: var(--accent); }
+  input:checked + .slider:before { transform: translateX(20px); }
 </style>
 </head>
 <body class="bg-grid">
@@ -834,10 +860,9 @@
               <input type="text" class="input" placeholder="https://yourdomain.com/webhook/wa" id="waWebhook" value="https://peroin.app/webhook/wa">
             </div>
             <div style="display:flex;align-items:center;gap:10px;">
-              <label style="position:relative;width:44px;height:24px;cursor:pointer;">
-                <input type="checkbox" checked id="waAutoNotif" style="display:none;">
-                <span style="position:absolute;inset:0;background:var(--border);border-radius:12px;transition:0.3s;" id="waToggle"></span>
-                <span style="position:absolute;top:3px;left:3px;width:18px;height:18px;background:#fff;border-radius:50%;transition:0.3s;" id="waToggleDot"></span>
+              <label class="switch">
+                <input type="checkbox" checked id="waAutoNotif">
+                <span class="slider"></span>
               </label>
               <span style="font-size:13px;">Aktifkan notifikasi otomatis</span>
             </div>
@@ -859,35 +884,35 @@
                 <div style="font-size:13px;font-weight:600;">Notifikasi Pesanan Baru</div>
                 <div style="font-size:12px;color:var(--text-muted);">WA + Push saat ada pesanan masuk</div>
               </div>
-              <input type="checkbox" checked class="notif-toggle" onchange="toggleNotifSetting(this)">
+              <label class="switch"><input type="checkbox" checked class="notif-toggle"><span class="slider"></span></label>
             </label>
             <label style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;">
               <div>
                 <div style="font-size:13px;font-weight:600;">Notifikasi Pembayaran</div>
                 <div style="font-size:12px;color:var(--text-muted);">WA saat pembayaran dikonfirmasi</div>
               </div>
-              <input type="checkbox" checked class="notif-toggle" onchange="toggleNotifSetting(this)">
+              <label class="switch"><input type="checkbox" checked class="notif-toggle"><span class="slider"></span></label>
             </label>
             <label style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;">
               <div>
                 <div style="font-size:13px;font-weight:600;">Notifikasi Pengiriman</div>
                 <div style="font-size:12px;color:var(--text-muted);">WA ke pembeli saat barang dikirim</div>
               </div>
-              <input type="checkbox" checked class="notif-toggle" onchange="toggleNotifSetting(this)">
+              <label class="switch"><input type="checkbox" checked class="notif-toggle"><span class="slider"></span></label>
             </label>
             <label style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;">
               <div>
                 <div style="font-size:13px;font-weight:600;">Peringatan Stok Habis</div>
                 <div style="font-size:12px;color:var(--text-muted);">WA saat stok produk di bawah 5</div>
               </div>
-              <input type="checkbox" class="notif-toggle" onchange="toggleNotifSetting(this)">
+              <label class="switch"><input type="checkbox" class="notif-toggle"><span class="slider"></span></label>
             </label>
             <label style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;">
               <div>
                 <div style="font-size:13px;font-weight:600;">Sound Alert</div>
                 <div style="font-size:12px;color:var(--text-muted);">Bunyi notifikasi di browser</div>
               </div>
-              <input type="checkbox" checked class="notif-toggle" onchange="toggleNotifSetting(this)">
+              <label class="switch"><input type="checkbox" checked class="notif-toggle"><span class="slider"></span></label>
             </label>
           </div>
         </div>
@@ -1008,6 +1033,8 @@ async function renderDashboard() {
     animateNumber(document.getElementById('statDikirim'), stats.dikirim);
     document.getElementById('statPendapatan').textContent = formatRp(stats.pendapatan);
     document.getElementById('badgePesanan').textContent = stats.belumProses;
+    
+    // Fetch orders for the table
     const resOrders = await fetch(`${API_BASE}/api/orders?limit=6`);
     const jsonOrders = await resOrders.json();
     orders = jsonOrders.data;
@@ -1026,7 +1053,11 @@ async function renderDashboard() {
     showToast('Gagal terhubung ke Backend!', 'error');
   }
   renderChartPenjualan();
-  function renderChartMarketplace() {
+  renderChartMarketplace(); // FIX: Memanggil fungsi yang sebelumnya hilang
+  renderChartTrafikDashboard(); // FIX: Memanggil fungsi yang sebelumnya hilang
+}
+
+function renderChartMarketplace() {
   const ctx = document.getElementById('chartMarketplace').getContext('2d');
   if (chartMarketplace) chartMarketplace.destroy();
   const mpData = MARKETPLACES.map(mp => orders.filter(o => o.marketplace === mp).length);
@@ -1046,7 +1077,8 @@ async function renderDashboard() {
     </div>
   `).join('');
 }
- function renderChartTrafikDashboard() {
+
+function renderChartTrafikDashboard() {
   const ctx = document.getElementById('chartTrafik').getContext('2d');
   if (chartTrafik) chartTrafik.destroy();
   const labels = []; const data = [];
@@ -1467,16 +1499,9 @@ function renderSettings() {
       <div style="display:flex;align-items:center;gap:10px;"><i class="${c.icon}" style="color:var(--text-muted);width:18px;text-align:center;"></i><span style="font-size:13px;font-weight:600;">${c.name}</span></div>
       <div style="display:flex;align-items:center;gap:6px;"><div style="width:8px;height:8px;border-radius:50%;background:${c.color};"></div><span style="font-size:12px;color:${c.color};font-weight:600;">${c.status}</span></div>
     </div>`).join('');
-  updateWAToggle();
+  // FIX: Hapus manipulasi DOM kompleks untuk WA Toggle, gunakan struktur CSS Switch
+  // Jika perlu trigger saat load, biarkan HTML statis menangani state checked/unchecked
 }
-
-function updateWAToggle() {
-  const checked = document.getElementById('waAutoNotif')?.checked;
-  const toggle = document.getElementById('waToggle');
-  const dot = document.getElementById('waToggleDot');
-  if (toggle) { toggle.style.background = checked ? 'var(--accent)' : 'var(--border)'; dot.style.left = checked ? '23px' : '3px'; }
-}
-document.addEventListener('change', (e) => { if (e.target.id === 'waAutoNotif') updateWAToggle(); });
 
 function saveSettings(type) {
   if (type === 'wa') {
@@ -1502,24 +1527,10 @@ function updateUptime() {
 async function init() {
   await renderDashboard();
   renderNotifPanel();
-  updateWAToggle();
-  document.querySelectorAll('.notif-toggle').forEach(t => {
-    t.style.display = 'none';
-    const span = document.createElement('span');
-    span.style.cssText = 'position:relative;width:44px;height:24px;cursor:pointer;flex-shrink:0;';
-    span.innerHTML = `<span style="position:absolute;inset:0;background:var(--border);border-radius:12px;transition:0.3s;"></span><span style="position:absolute;top:3px;left:3px;width:18px;height:18px;background:#fff;border-radius:50%;transition:0.3s;"></span>`;
-    t.parentElement.insertBefore(span, t);
-    span.addEventListener('click', () => {
-      t.checked = !t.checked; t.dispatchEvent(new Event('change'));
-      span.children[0].style.background = t.checked ? 'var(--accent)' : 'var(--border)';
-      span.children[1].style.left = t.checked ? '23px' : '3px';
-    });
-    if (t.checked) { span.children[0].style.background = 'var(--accent)'; span.children[1].style.left = '23px'; }
-  });
-  setInterval(updateUptime, 10000);
-  updateUptime();
   document.getElementById('modalDetail').addEventListener('click', (e) => { if (e.target === document.getElementById('modalDetail')) document.getElementById('modalDetail').classList.remove('open'); });
   document.getElementById('modalConfirm').addEventListener('click', (e) => { if (e.target === document.getElementById('modalConfirm')) document.getElementById('modalConfirm').classList.remove('open'); });
+  setInterval(updateUptime, 10000);
+  updateUptime();
 }
 
 document.addEventListener('DOMContentLoaded', init);
