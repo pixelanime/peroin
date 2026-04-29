@@ -1,0 +1,13 @@
+# Dependencies (folder hasil npm install, ukurannya besar)
+backend/node_modules/
+
+# File rahasia JANGAN PERNAH di-push ke GitHub
+backend/.env
+.env
+
+# File sistem Mac/Windows
+.DS_Store
+Thumbs.db
+
+# Log error
+npm-debug.log*
