@@ -1196,13 +1196,14 @@ function renderChartTrafikDashboard() {
 function renderChartPenjualan() {
   const ctx = document.getElementById('chartPenjualan')?.getContext('2d');
   if (!ctx) return;
-  if (chartPenjualan) chartPenjualan.destroy();
+  if (typeof chartPenjualan !== 'undefined' && chartPenjualan) chartPenjualan.destroy();
   
   const labels = []; const dataOrders = []; const dataRevenue = [];
   for (let i = 6; i >= 0; i--) {
     const d = new Date(Date.now() - i * 86400000);
     labels.push(d.toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric' }));
-    dataOrders.push(randInt(15, 65)); dataRevenue.push(randInt(500000, 5000000));
+    dataOrders.push(randInt(15, 65)); 
+    dataRevenue.push(randInt(500000, 5000000));
   }
   
   chartPenjualan = new Chart(ctx, {
@@ -1210,16 +1211,20 @@ function renderChartPenjualan() {
     data: {
       labels,
       datasets: [{
-        label: 'Pesanan', data: dataOrders,
+        label: 'Pesanan', 
+        data: dataOrders,
         backgroundColor: 'rgba(0,230,118,0.06)',
         borderColor: 'rgba(0,230,118,0.15)',
         borderWidth: 1,
         borderRadius: 4,
-        yAxisID: 'y', order: 2
+        yAxisID: 'y', 
+        order: 2
       }]
     },
     options: {
-      responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+      responsive: true, 
+      maintainAspectRatio: false, 
+      interaction: { mode: 'index', intersect: false },
       plugins: {
         legend: { display: false },
         tooltip: {
@@ -1231,13 +1236,19 @@ function renderChartPenjualan() {
         }
       },
       scales: {
-        x: { ticks: { color: '#3d5e4d', font: { size: 10 } }, grid: { color: 'rgba(36,61,48,0.08)', drawBorder: false },
-        y: { position: 'left', ticks: { color: '#3d5e4d', font: { size: 10 } }, grid: { color: 'rgba(36,61,48,0.08)', drawBorder: false }
+        x: { 
+          ticks: { color: '#3d5e4d', font: { size: 10 } }, 
+          grid: { color: 'rgba(36,61,48,0.08)', display: false } 
+        },
+        y: { 
+          position: 'left', 
+          ticks: { color: '#3d5e4d', font: { size: 10 } }, 
+          grid: { color: 'rgba(36,61,48,0.08)' } 
+        }
       }
     }
   });
 }
-
 function switchChartPeriod(btn, period) {
   btn.parentElement.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
