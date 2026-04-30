@@ -79,7 +79,7 @@
     background: var(--bg-secondary);
     border-right: 1px solid var(--border);
     position: fixed; left: 0; top: 0; 
-    z-index: 30; /* DITURUNKAN dari 40 agar tidak nutupin modal/overlay */
+    z-index: 30;
     transition: transform 0.3s ease;
   }
   .sidebar.collapsed { transform: translateX(-260px); }
@@ -87,7 +87,7 @@
     margin-left: 260px;
     transition: margin-left 0.3s ease;
     position: relative; 
-    z-index: 10; /* Konten utama di bawah sidebar tapi di atas background */
+    z-index: 10;
   }
   .main-content.expanded { margin-left: 0; }
 
@@ -225,10 +225,10 @@
   .toast-container {
     position: fixed; top: 20px; right: 20px;
     z-index: 9999; display: flex; flex-direction: column; gap: 10px;
-    pointer-events: none; /* Agar tembus klik */
+    pointer-events: none;
   }
   .toast {
-    pointer-events: auto; /* Tombol di dalam toast bisa diklik */
+    pointer-events: auto;
     padding: 14px 20px; border-radius: 12px;
     font-size: 13px; font-weight: 500;
     display: flex; align-items: center; gap: 10px;
@@ -538,7 +538,7 @@
 </div>
 
 <!-- Main Content -->
-<main>   class="main-content" id="mainContent">
+<main class="main-content" id="mainContent">
   <!-- Top bar -->
   <header style="padding:16px 28px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:rgba(10,15,13,0.8);backdrop-filter:blur(12px);position:sticky;top:0;z-index:20;">
     <div style="display:flex;align-items:center;gap:16px;">
@@ -1108,14 +1108,12 @@ async function renderDashboard() {
     renderChartTrafikDashboard();
     
   } catch (err) {
-    console.error('Gagal memuat data Chart Marketplace:', err);
-    // Opsional: Tampilkan grafik kosong atau pesan error di dalam canvas
-    const ctx = document.getElementById('chartMarketplace')?.getContext('2d');
-    if(ctx) {
-        // Kita bisa menggambar teks error manual atau biarkan kosong
-        // Untuk sekarang biarkan kosong (grafik lama akan di-destroy)
-    }
+    console.error('Gagal memuat Dashboard:', err);
+    showToast('Gagal terhubung ke Backend! (Cek Console)', 'error');
+    // Fallback: Tetap render chart dummy agar UI tidak kosong
+    renderChartTrafikDashboard(); 
   }
+}
 
 async function renderChartMarketplace() {
   const ctx = document.getElementById('chartMarketplace')?.getContext('2d');
@@ -1152,7 +1150,12 @@ async function renderChartMarketplace() {
     }
   } catch (err) {
     console.error('Gagal memuat data Chart Marketplace:', err);
-    // Opsional: Tampilkan grafik kosong atau error handling visual
+    // Opsional: Tampilkan grafik kosong atau pesan error di dalam canvas
+    const ctx = document.getElementById('chartMarketplace')?.getContext('2d');
+    if(ctx) {
+        // Kita bisa menggambar teks error manual atau biarkan kosong
+        // Untuk sekarang biarkan kosong (grafik lama akan di-destroy)
+    }
   }
 }
 
