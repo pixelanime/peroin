@@ -112,6 +112,22 @@ app.get('/api/stats/dashboard', async (req, res) => {
   });
 });
 
+// 5b. Data untuk Chart (7 hari terakhir) - ENDPOINT BARU
+app.get('/api/stats/chart', async (req, res) => {
+  // Hitung 7 hari ke belakang
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  
+  const { data, error } = await supabase
+    .from('orders')
+    .select('marketplace, total, created_at')
+    .gte('created_at', sevenDaysAgo.toISOString()); // Filter 7 hari terakhir
+
+  if (error) return res.status(500).json({ error: error.message });
+
+  res.json(data);
+});
+
 // 6. Log Notifikasi WhatsApp
 app.get('/api/wa-logs', async (req, res) => {
   const { data, error } = await supabase.from('wa_logs').select('*').order('created_at', { ascending: false }).limit(50);
@@ -124,6 +140,7 @@ app.post('/api/wa-logs', async (req, res) => {
   if (error) return res.status(500).json({ error: error.message });
   res.status(201).json(data);
 });
+
 // 6b. Kirim WhatsApp Nyata via Fonnte
 app.post('/api/send-wa', async (req, res) => {
   const { phone, message } = req.body;
@@ -162,6 +179,7 @@ app.post('/api/send-wa', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
 // 7. Endpoint dummy untuk Webhook (Nanti diisi Shopee/Tokopedia)
 app.post('/webhook/shopee', (req, res) => {
   console.log('Webhook Shopee diterima:', req.body);
